@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FRC Event Dashboard</title>
+  <script src="/config.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d0d;
+      --surface:   #141414;
+      --border:    #2a2a2a;
+      --text:      #c8c8c8;
+      --text-dim:  #555;
+      --accent:    #00e5ff;
+      --accent2:   #ff6d00;
+      --great:     #00c853;
+      --good:      #69f0ae;
+      --warn:      #ff9100;
+      --bad:       #d50000;
+      --font:      "Courier New", Courier, monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 1.5rem;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1rem;
+      font-weight: normal;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    header .subtitle {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+
+    header .status-pill {
+      margin-left: auto;
+      padding: 2px 8px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+
+    /* ── views ── */
+    .view { display: none; flex: 1; flex-direction: column; }
+    .view.active { display: flex; }
+
+    /* ── selector view ── */
+    #view-selector {
+      padding: 1.25rem;
+      gap: 0.75rem;
+    }
+
+    .selector-controls {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    #event-search {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.85rem;
+      padding: 0.4rem 0.6rem;
+      outline: none;
+    }
+
+    #event-search:focus { border-color: var(--accent); }
+    #event-search::placeholder { color: var(--text-dim); }
+
+    .selector-meta {
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+
+    #event-list-wrap {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      min-height: 0;
+    }
+
+    .event-item {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+      padding: 0.45rem 0.75rem;
+      border-bottom: 1px solid #1a1a1a;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .event-item:last-child { border-bottom: none; }
+    .event-item:hover { background: #1c1c1c; }
+
+    .event-item input[type="checkbox"] {
+      accent-color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .event-item .event-name  { color: var(--text); font-size: 0.82rem; }
+    .event-item .event-week  { color: var(--text-dim); font-size: 0.7rem; flex-shrink: 0; }
+    .event-item .event-location {
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      margin-left: auto;
+      white-space: nowrap;
+    }
+
+    .event-item.checked .event-name { color: var(--accent); }
+
+    .selector-footer {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+
+    #selected-count { color: var(--text-dim); font-size: 0.75rem; }
+
+    #track-btn {
+      background: var(--accent);
+      border: none;
+      color: #000;
+      font-family: var(--font);
+      font-size: 0.82rem;
+      font-weight: bold;
+      padding: 0.45rem 1.25rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    #track-btn:disabled { background: var(--border); color: var(--text-dim); cursor: default; }
+    #track-btn:not(:disabled):hover { background: #33eeff; }
+
+    .list-message {
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      font-style: italic;
+    }
+
+    /* ── dashboard view ── */
+    #view-dashboard {
+      padding: 1.25rem;
+      gap: 1.25rem;
+      overflow-y: auto;
+    }
+
+    .dash-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    .dash-updated {
+      color: var(--text-dim);
+      font-size: 0.75rem;
+    }
+
+    .dash-countdown {
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      margin-left: auto;
+    }
+
+    .icon-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-size: 0.75rem;
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+    }
+
+    .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .icon-btn:disabled { opacity: 0.4; cursor: default; }
+
+    select.icon-btn {
+      appearance: none;
+      -webkit-appearance: none;
+      padding-right: 1.4rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23555'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.45rem center;
+    }
+
+    select.icon-btn option { background: var(--surface); color: var(--text); }
+
+    /* ── shared panel ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .panel-header {
+      padding: 0.4rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+    }
+
+    .panel-body { padding: 0.75rem; }
+
+    .panel-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-toggle-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0 0.2rem;
+      line-height: 1;
+      transition: transform 0.2s;
+    }
+
+    .panel-toggle-btn:hover { color: var(--accent); }
+    .panel.collapsed .panel-body { display: none; }
+    .panel.collapsed .panel-header { border-bottom: none; }
+    .panel.collapsed .panel-toggle-btn { transform: rotate(-90deg); }
+
+    .card-break-status {
+      text-align: center;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.5rem;
+      border: 1px solid;
+    }
+
+    .break-lunch { color: var(--warn);   border-color: var(--warn);   }
+    .break-eod   { color: var(--accent); border-color: var(--accent); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 0.3rem 0.5rem;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      font-weight: normal;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.7rem;
+    }
+
+    td { padding: 0.3rem 0.5rem; border-bottom: 1px solid #1a1a1a; }
+    tr:last-child td { border-bottom: none; }
+
+    .accent { color: var(--accent); }
+    .dim    { color: var(--text-dim); }
+    .good   { color: var(--good); }
+    .warn   { color: var(--warn); }
+    .bad    { color: var(--bad); }
+
+    /* ── event cards ── */
+    .cards-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .event-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left-width: 3px;
+      padding: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .event-card.status-great { border-left-color: var(--great); }
+    .event-card.status-good  { border-left-color: var(--good); }
+    .event-card.status-warn  { border-left-color: var(--warn); }
+    .event-card.status-bad   { border-left-color: var(--bad);  }
+    .event-card.status-dim   { border-left-color: var(--border); }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .card-name {
+      color: var(--text);
+      font-size: 0.82rem;
+      line-height: 1.3;
+    }
+
+    .card-badge {
+      font-size: 0.7rem;
+      padding: 1px 5px;
+      border: 1px solid;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .event-card.status-great .card-badge { color: var(--great); border-color: var(--great); }
+    .event-card.status-good  .card-badge { color: var(--good);  border-color: var(--good);  }
+    .event-card.status-warn  .card-badge { color: var(--warn);  border-color: var(--warn);  }
+    .event-card.status-bad   .card-badge { color: var(--bad);   border-color: var(--bad);   }
+    .event-card.status-dim   .card-badge { color: var(--text-dim); border-color: var(--border); }
+
+    .card-location { color: var(--text-dim); font-size: 0.72rem; }
+
+    .card-progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-top: 0.1rem;
+    }
+
+    .card-progress-bar {
+      flex: 1;
+      height: 5px;
+      background: var(--border);
+    }
+
+    .card-progress-fill { height: 100%; transition: width 0.5s ease; }
+
+    .event-card.status-great .card-progress-fill { background: var(--great); }
+    .event-card.status-good  .card-progress-fill { background: var(--good);  }
+    .event-card.status-warn  .card-progress-fill { background: var(--warn);  }
+    .event-card.status-bad   .card-progress-fill { background: var(--bad);   }
+    .event-card.status-dim   .card-progress-fill { background: var(--text-dim); }
+
+    .card-pct {
+      color: var(--text-dim);
+      font-size: 0.72rem;
+      min-width: 2.8em;
+      text-align: right;
+    }
+
+    .card-stats {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      gap: 0.5rem;
+    }
+
+    .card-pin-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+    }
+
+    .card-pin-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    .card-pin-btn.pinned {
+      border-color: var(--accent2);
+      color: var(--accent2);
+    }
+
+    .event-card.pinned-card {
+      border-top: 2px solid var(--accent2);
+    }
+
+    .card-delta.great { color: var(--great); }
+    .card-delta.good  { color: var(--good);  }
+    .card-delta.warn  { color: var(--warn);  }
+    .card-delta.bad   { color: var(--bad);   }
+
+    .card-stream-btn {
+      display: inline-block;
+      color: #ff4444;
+      border: 1px solid #ff4444;
+      font-family: var(--font);
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      text-decoration: none;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .card-stream-btn:hover { background: #ff4444; color: #000; }
+
+    .card-stream-offline {
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      font-style: italic;
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding-top: 0.4rem;
+      border-top: 1px solid #1a1a1a;
+      margin-top: 0.1rem;
+    }
+
+    /* ── footer ── */
+    footer {
+      padding: 0.5rem 1.25rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      display: flex;
+      gap: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    #clock { color: var(--accent); }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); }
+    ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>FRC Event Dashboard</h1>
+  <span class="subtitle" id="header-subtitle">2026 Season</span>
+  <span class="status-pill" id="conn-status">OFFLINE</span>
+</header>
+
+<!-- ── Event Selector View ── -->
+<div class="view active" id="view-selector">
+  <div class="selector-controls">
+    <input id="event-search" type="text" placeholder="filter active events by name or location…" autocomplete="off" />
+    <span class="selector-meta" id="event-count-meta">loading…</span>
+  </div>
+
+  <div id="event-list-wrap">
+    <div class="list-message">loading events…</div>
+  </div>
+
+  <div class="selector-footer">
+    <span id="selected-count">0 selected</span>
+    <button id="track-btn" disabled>Track Selected Events</button>
+  </div>
+</div>
+
+<!-- ── Dashboard View ── -->
+<div class="view" id="view-dashboard">
+
+  <div class="dash-nav">
+    <button class="icon-btn" id="back-btn">← Change Events</button>
+    <span class="dash-updated" id="dash-updated">—</span>
+    <button class="icon-btn" id="refresh-btn">↻ Refresh</button>
+    <select class="icon-btn" id="refresh-rate">
+      <option value="30s">30s</option>
+      <option value="1m">1m</option>
+      <option value="2m">2m</option>
+      <option value="5m">5m</option>
+      <option value="10m">10m</option>
+    </select>
+    <span class="dash-countdown" id="dash-countdown"></span>
+  </div>
+
+  <div class="panel" id="leaderboard-panel">
+    <div class="panel-header panel-header-row">
+      <span>Leaderboard — Schedule Status</span>
+      <button class="panel-toggle-btn" id="leaderboard-toggle">▾</button>
+    </div>
+    <div class="panel-body">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:2rem">#</th>
+            <th>Event</th>
+            <th>Location</th>
+            <th style="width:6rem">Quals</th>
+            <th style="width:10rem">Schedule</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-tbody">
+          <tr><td colspan="5" class="dim" style="text-align:center;padding:1rem 0;">loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="cards-grid" id="cards-grid">
+    <div class="list-message">loading…</div>
+  </div>
+
+</div>
+
+<footer>
+  <span>FRC Event Dashboard v0.1</span>
+  <span id="clock"></span>
+</footer>
+
+<script>
+  const API_KEY     = window.TBA_API_KEY     || "";
+  const YT_API_KEY  = window.YOUTUBE_API_KEY || "";
+  const TBA_BASE    = "https://www.thebluealliance.com/api/v3";
+  const YT_API_BASE = "https://www.googleapis.com/youtube/v3";
+  const LS_KEY        = "frc_selected_event_keys";
+  const LS_KEY_PINNED = "frc_pinned_event_key";
+  const REFRESH_OPTIONS_MS = { "30s": 30_000, "1m": 60_000, "2m": 120_000, "5m": 300_000, "10m": 600_000 };
+  const LS_KEY_REFRESH     = "frc_refresh_rate";
+  let   refreshIntervalMs  = REFRESH_OPTIONS_MS[localStorage.getItem(LS_KEY_REFRESH)] ?? 60_000;
+
+  // ── state ──────────────────────────────────────────────────────────────────
+  let allEvents    = [];
+  let selectedKeys = new Set(JSON.parse(localStorage.getItem(LS_KEY) || "[]"));
+  let pinnedKey    = localStorage.getItem(LS_KEY_PINNED) || null;
+  let refreshTimer    = null;
+  let countdownTimer  = null;
+  let countdownSecs   = refreshIntervalMs / 1000;
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+  function saveSelected() {
+    localStorage.setItem(LS_KEY, JSON.stringify([...selectedKeys]));
+  }
+
+  function savePinned() {
+    if (pinnedKey) localStorage.setItem(LS_KEY_PINNED, pinnedKey);
+    else           localStorage.removeItem(LS_KEY_PINNED);
+  }
+
+  async function tbaFetch(path) {
+    const res = await fetch(TBA_BASE + path, {
+      headers: { "X-TBA-Auth-Key": API_KEY }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  function weekLabel(w) {
+    if (w == null) return "—";
+    if (w === 0)   return "CMP";
+    if (w === 99)  return "Off";
+    return `Wk ${w}`;
+  }
+
+  function locationStr(ev) {
+    return [ev.city, ev.state_prov, ev.country].filter(Boolean).join(", ");
+  }
+
+  function isActiveThisWeek(ev) {
+    const today = new Date().toISOString().slice(0, 10);
+    return ev.start_date && ev.end_date &&
+      ev.start_date <= today && today <= ev.end_date;
+  }
+
+  // ── views ──────────────────────────────────────────────────────────────────
+  function showView(id) {
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+
+  // ── selector ───────────────────────────────────────────────────────────────
+  function renderList(filter) {
+    const wrap    = document.getElementById("event-list-wrap");
+    const q       = (filter || "").toLowerCase();
+    const visible = allEvents.filter(ev =>
+      ev.name.toLowerCase().includes(q) || locationStr(ev).toLowerCase().includes(q)
+    );
+
+    if (allEvents.length === 0) {
+      wrap.innerHTML = `<div class="list-message">// no events active this week</div>`;
+      return;
+    }
+
+    if (!visible.length) {
+      wrap.innerHTML = `<div class="list-message">no events match "${filter}"</div>`;
+      return;
+    }
+
+    wrap.innerHTML = visible.map(ev => {
+      const checked = selectedKeys.has(ev.key);
+      return `
+        <label class="event-item${checked ? " checked" : ""}" data-key="${ev.key}">
+          <input type="checkbox" value="${ev.key}" ${checked ? "checked" : ""} />
+          <span class="event-name">${ev.name}</span>
+          <span class="event-week">${weekLabel(ev.week)}</span>
+          <span class="event-location">${locationStr(ev)}</span>
+        </label>`;
+    }).join("");
+
+    wrap.querySelectorAll("input[type=checkbox]").forEach(cb => {
+      cb.addEventListener("change", onCheckboxChange);
+    });
+  }
+
+  function onCheckboxChange(e) {
+    const key   = e.target.value;
+    const label = e.target.closest(".event-item");
+    if (e.target.checked) {
+      selectedKeys.add(key);
+      label.classList.add("checked");
+    } else {
+      selectedKeys.delete(key);
+      label.classList.remove("checked");
+    }
+    saveSelected();
+    updateSelectionUI();
+  }
+
+  function updateSelectionUI() {
+    const n = selectedKeys.size;
+    document.getElementById("selected-count").textContent =
+      n === 1 ? "1 selected" : `${n} selected`;
+    document.getElementById("track-btn").disabled = n === 0;
+  }
+
+  async function initSelector() {
+    const statusEl = document.getElementById("conn-status");
+    try {
+      const raw = await tbaFetch("/events/2026/simple");
+      allEvents = raw
+        .filter(isActiveThisWeek)
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      // drop any saved selections that aren't active this week
+      for (const k of [...selectedKeys]) {
+        if (!allEvents.some(ev => ev.key === k)) selectedKeys.delete(k);
+      }
+      saveSelected();
+
+      statusEl.textContent = "ONLINE";
+      statusEl.style.color = "var(--good)";
+      document.getElementById("event-count-meta").textContent =
+        allEvents.length > 0
+          ? `${allEvents.length} active this week`
+          : "no active events";
+
+      renderList(document.getElementById("event-search").value);
+      updateSelectionUI();
+
+      if (selectedKeys.size > 0) showDashboard();
+    } catch (err) {
+      statusEl.textContent = "ERROR";
+      statusEl.style.color = "var(--bad)";
+      document.getElementById("event-list-wrap").innerHTML =
+        `<div class="list-message">failed to load events: ${err.message}</div>`;
+      document.getElementById("event-count-meta").textContent = "error";
+    }
+  }
+
+  document.getElementById("event-search").addEventListener("input", e => {
+    renderList(e.target.value);
+  });
+
+  document.getElementById("track-btn").addEventListener("click", showDashboard);
+
+  // ── schedule break detection ────────────────────────────────────────────────
+  function getScheduleStatus(quals) {
+    const scheduled = quals.filter(m => m.time != null)
+                           .sort((a, b) => a.match_number - b.match_number);
+    if (!scheduled.length) return null;
+
+    const played = scheduled.filter(m => m.actual_time != null);
+    if (!played.length) return null;
+
+    const lastPlayed = played[played.length - 1];
+    const next       = scheduled[scheduled.indexOf(lastPlayed) + 1];
+
+    // No next match, or next match already played — no break
+    if (!next || next.actual_time != null) return null;
+
+    const gapMins = (next.time - lastPlayed.time) / 60;
+
+    // Different UTC day → end of day for today
+    if (Math.floor(next.time / 86400) > Math.floor(lastPlayed.time / 86400)) return "END_OF_DAY";
+
+    // Gap ≥ 45 minutes within the same day → lunch
+    if (gapMins >= 45) return "LUNCH";
+
+    return null;
+  }
+
+  // ── match processing ────────────────────────────────────────────────────────
+  function processMatches(ev, matches) {
+    const quals  = matches.filter(m => m.comp_level === "qm");
+    const total  = quals.length;
+
+    if (total === 0) {
+      return { ev, total: 0, played: 0, pct: 0, currentNum: 0, delta: null };
+    }
+
+    const played     = quals.filter(m => m.actual_time !== null);
+    const playedCount = played.length;
+    const pct        = Math.round((playedCount / total) * 100);
+
+    const lastPlayed = played.reduce(
+      (best, m) => !best || m.match_number > best.match_number ? m : best,
+      null
+    );
+
+    const currentNum = lastPlayed ? lastPlayed.match_number : 0;
+
+    // delta: positive = ahead, negative = behind (seconds → minutes)
+    let delta = null;
+    if (lastPlayed && lastPlayed.time && lastPlayed.actual_time) {
+      delta = (lastPlayed.time - lastPlayed.actual_time) / 60;
+    }
+
+    const breakStatus = getScheduleStatus(quals);
+    return { ev, total, played: playedCount, pct, currentNum, delta, breakStatus };
+  }
+
+  // ── schedule status helpers ─────────────────────────────────────────────────
+  function statusClass(delta) {
+    if (delta === null) return "dim";
+    if (delta >= -5)   return "great";  // ahead or < 5 min behind
+    if (delta >= -10)  return "good";   // 5–10 min behind
+    if (delta >= -15)  return "warn";   // 10–15 min behind
+    return "bad";                        // > 15 min behind
+  }
+
+  function deltaLabel(delta) {
+    if (delta === null) return "no schedule data";
+    const abs = Math.abs(delta).toFixed(1);
+    return delta >= 0 ? `+${abs} min ahead` : `${abs} min behind`;
+  }
+
+  function badgeText(delta) {
+    if (delta === null) return "—";
+    const abs = Math.abs(delta).toFixed(1);
+    return delta >= 0 ? `▲ +${abs}m` : `▼ ${abs}m`;
+  }
+
+  // ── stream detection ────────────────────────────────────────────────────────
+  async function getStreamUrl(eventDetail) {
+    const webcasts = eventDetail.webcasts || [];
+    const yt = webcasts.find(w => w.type === "youtube");
+    if (!yt) return null;
+
+    const videoId = yt.file || yt.channel;
+    if (!videoId) return null;
+
+    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+    // Without an API key fall back to showing the link unconditionally.
+    if (!YT_API_KEY) return watchUrl;
+
+    try {
+      const res  = await fetch(
+        `${YT_API_BASE}/videos?part=snippet&id=${videoId}&key=${YT_API_KEY}`
+      );
+      const data = await res.json();
+      const item = data.items?.[0];
+      // liveBroadcastContent is "live" only while actively streaming.
+      return item?.snippet?.liveBroadcastContent === "live" ? watchUrl : null;
+    } catch {
+      // Network error — fall back to showing the link so we don't hide a live stream.
+      return watchUrl;
+    }
+  }
+
+  // ── dashboard load ──────────────────────────────────────────────────────────
+  async function loadDashboard() {
+    const tracked = allEvents.filter(ev => selectedKeys.has(ev.key));
+    const btn = document.getElementById("refresh-btn");
+
+    btn.disabled = true;
+    document.getElementById("dash-updated").textContent = "updating…";
+
+    const results = await Promise.allSettled(
+      tracked.map(async ev => {
+        const [matches, eventDetail] = await Promise.all([
+          tbaFetch(`/event/${ev.key}/matches/simple`),
+          tbaFetch(`/event/${ev.key}`)
+        ]);
+        const matchData = processMatches(ev, matches);
+        const streamUrl = await getStreamUrl(eventDetail);
+        return { ...matchData, streamUrl };
+      })
+    );
+
+    const eventData = results.map((r, i) => {
+      if (r.status === "fulfilled") return r.value;
+      return { ev: tracked[i], total: 0, played: 0, pct: 0, currentNum: 0, delta: null,
+               streamUrl: null, breakStatus: null, error: r.reason.message };
+    });
+
+    renderLeaderboard(eventData);
+    renderCards(eventData);
+
+    const ts = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
+    document.getElementById("dash-updated").textContent = `updated ${ts}`;
+    btn.disabled = false;
+
+    resetCountdown();
+  }
+
+  // ── leaderboard ─────────────────────────────────────────────────────────────
+  function renderLeaderboard(eventData) {
+    const sorted = [...eventData].sort((a, b) => {
+      if (a.delta === null && b.delta === null) return 0;
+      if (a.delta === null) return 1;
+      if (b.delta === null) return -1;
+      return b.delta - a.delta;
+    });
+
+    const cssColor = sc =>
+      ({ great: "var(--great)", good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", dim: "var(--text-dim)" })[sc];
+
+    document.getElementById("leaderboard-tbody").innerHTML = sorted.map((d, i) => {
+      const sc  = statusClass(d.delta);
+      const col = cssColor(sc);
+      const progress = d.total > 0
+        ? `${d.played}/${d.total} (${d.pct}%)`
+        : "no schedule";
+      const schedule = d.error
+        ? `<span style="color:var(--bad)">ERROR</span>`
+        : d.breakStatus === "END_OF_DAY"
+          ? `<span style="color:var(--accent)">End of Day</span>`
+          : d.breakStatus === "LUNCH"
+            ? `<span style="color:var(--warn)">Lunch Break</span>`
+            : `<span style="color:${col}">${deltaLabel(d.delta)}</span>`;
+      return `
+        <tr>
+          <td class="dim">${i + 1}</td>
+          <td class="accent">${d.ev.name}</td>
+          <td class="dim">${locationStr(d.ev)}</td>
+          <td>${progress}</td>
+          <td>${schedule}</td>
+        </tr>`;
+    }).join("") ||
+      `<tr><td colspan="5" class="dim" style="text-align:center;padding:1rem 0;">// no data</td></tr>`;
+  }
+
+  // ── event cards ─────────────────────────────────────────────────────────────
+  function sortEventData(eventData) {
+    return [...eventData].sort((a, b) => {
+      const aPin = a.ev.key === pinnedKey;
+      const bPin = b.ev.key === pinnedKey;
+      if (aPin !== bPin) return aPin ? -1 : 1;
+      // most ahead (highest delta) first; null deltas go last
+      if (a.delta === null && b.delta === null) return 0;
+      if (a.delta === null) return 1;
+      if (b.delta === null) return -1;
+      return b.delta - a.delta;
+    });
+  }
+
+  function renderCards(eventData) {
+    const grid = document.getElementById("cards-grid");
+
+    if (!eventData.length) {
+      grid.innerHTML = `<div class="list-message">// no events tracked</div>`;
+      return;
+    }
+
+    grid.innerHTML = sortEventData(eventData).map(d => {
+      const sc       = statusClass(d.delta);
+      const isPinned = d.ev.key === pinnedKey;
+
+      const matchStr = d.total === 0
+        ? "no qual schedule"
+        : d.played === 0
+          ? `0 of ${d.total} played`
+          : `QM${d.currentNum} of ${d.total}`;
+
+      const deltaStr = d.error ? d.error : deltaLabel(d.delta);
+
+      const streamEl = d.streamUrl
+        ? `<a class="card-stream-btn" href="${d.streamUrl}" target="_blank" rel="noopener">▶ Watch Webcast</a>`
+        : `<span class="card-stream-offline">Webcast Offline</span>`;
+
+      const breakEl = d.breakStatus
+        ? `<div class="card-break-status ${d.breakStatus === "LUNCH" ? "break-lunch" : "break-eod"}">
+             ${d.breakStatus === "LUNCH" ? "// Lunch Break" : "// End of Day"}
+           </div>`
+        : "";
+
+      return `
+        <div class="event-card status-${sc}${isPinned ? " pinned-card" : ""}" data-key="${d.ev.key}">
+          <div class="card-header">
+            <span class="card-name">${d.ev.name}</span>
+            <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0">
+              <button class="card-pin-btn${isPinned ? " pinned" : ""}" data-pin="${d.ev.key}">
+                ${isPinned ? "★ pinned" : "☆ pin"}
+              </button>
+              <span class="card-badge">${d.error ? "ERR" : badgeText(d.delta)}</span>
+            </div>
+          </div>
+          <div class="card-location">${locationStr(d.ev)} · ${weekLabel(d.ev.week)}</div>
+          <div class="card-progress-wrap">
+            <div class="card-progress-bar">
+              <div class="card-progress-fill" style="width:${d.pct}%"></div>
+            </div>
+            <span class="card-pct">${d.pct}%</span>
+          </div>
+          <div class="card-stats">
+            <span>${matchStr}</span>
+            <span class="card-delta ${sc}">${deltaStr}</span>
+          </div>
+          ${breakEl}
+          <div class="card-footer">${streamEl}</div>
+        </div>`;
+    }).join("");
+  }
+
+  // ── refresh / countdown ─────────────────────────────────────────────────────
+  function fmtCountdown(secs) {
+    if (secs < 60) return `${secs}s`;
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  }
+
+  function resetCountdown() {
+    clearInterval(countdownTimer);
+    countdownSecs = refreshIntervalMs / 1000;
+    updateCountdownDisplay();
+    countdownTimer = setInterval(() => {
+      countdownSecs--;
+      updateCountdownDisplay();
+    }, 1000);
+  }
+
+  function updateCountdownDisplay() {
+    document.getElementById("dash-countdown").textContent =
+      `next refresh in ${fmtCountdown(countdownSecs)}`;
+  }
+
+  function startAutoRefresh() {
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(loadDashboard, refreshIntervalMs);
+  }
+
+  // ── dashboard entry ─────────────────────────────────────────────────────────
+  function showDashboard() {
+    const n = selectedKeys.size;
+    document.getElementById("header-subtitle").textContent =
+      `${n} event${n !== 1 ? "s" : ""} tracked`;
+
+    showView("view-dashboard");
+    loadDashboard();
+    startAutoRefresh();
+  }
+
+  document.getElementById("cards-grid").addEventListener("click", e => {
+    const btn = e.target.closest("[data-pin]");
+    if (!btn) return;
+    const key = btn.dataset.pin;
+    pinnedKey = pinnedKey === key ? null : key;
+    savePinned();
+    // re-render cards in place without a full API fetch
+    const grid = document.getElementById("cards-grid");
+    grid.querySelectorAll(".event-card").forEach(card => {
+      const isPinned = card.dataset.key === pinnedKey;
+      card.classList.toggle("pinned-card", isPinned);
+      const pinBtn = card.querySelector("[data-pin]");
+      pinBtn.classList.toggle("pinned", isPinned);
+      pinBtn.textContent = isPinned ? "★ pinned" : "☆ pin";
+    });
+    // re-sort the DOM nodes
+    const cards = [...grid.querySelectorAll(".event-card")];
+    cards.sort((a, b) => {
+      const aPin = a.dataset.key === pinnedKey;
+      const bPin = b.dataset.key === pinnedKey;
+      if (aPin !== bPin) return aPin ? -1 : 1;
+      return 0; // preserve existing schedule order for unpinned
+    });
+    cards.forEach(c => grid.appendChild(c));
+  });
+
+  // ── leaderboard toggle ──────────────────────────────────────────────────────
+  const leaderboardPanel  = document.getElementById("leaderboard-panel");
+  const leaderboardToggle = document.getElementById("leaderboard-toggle");
+
+  if (localStorage.getItem("frc_leaderboard_collapsed") === "1") {
+    leaderboardPanel.classList.add("collapsed");
+  }
+
+  leaderboardToggle.addEventListener("click", () => {
+    const collapsed = leaderboardPanel.classList.toggle("collapsed");
+    localStorage.setItem("frc_leaderboard_collapsed", collapsed ? "1" : "0");
+  });
+
+  // initialise dropdown to saved value
+  const refreshRateEl = document.getElementById("refresh-rate");
+  const savedRate = localStorage.getItem(LS_KEY_REFRESH);
+  if (savedRate && refreshRateEl.querySelector(`option[value="${savedRate}"]`)) {
+    refreshRateEl.value = savedRate;
+  } else {
+    refreshRateEl.value = "1m";
+  }
+
+  refreshRateEl.addEventListener("change", () => {
+    const label = refreshRateEl.value;
+    localStorage.setItem(LS_KEY_REFRESH, label);
+    refreshIntervalMs = REFRESH_OPTIONS_MS[label];
+    clearInterval(refreshTimer);
+    clearInterval(countdownTimer);
+    startAutoRefresh();
+    resetCountdown();
+  });
+
+  document.getElementById("refresh-btn").addEventListener("click", () => {
+    clearInterval(refreshTimer);
+    clearInterval(countdownTimer);
+    loadDashboard();
+    startAutoRefresh();
+  });
+
+  document.getElementById("back-btn").addEventListener("click", () => {
+    clearInterval(refreshTimer);
+    clearInterval(countdownTimer);
+    showView("view-selector");
+    document.getElementById("header-subtitle").textContent = "2026 Season";
+    renderList(document.getElementById("event-search").value);
+    updateSelectionUI();
+  });
+
+  // ── clock ───────────────────────────────────────────────────────────────────
+  function tick() {
+    document.getElementById("clock").textContent =
+      new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // ── boot ────────────────────────────────────────────────────────────────────
+  initSelector();
+</script>
+
+</body>
+</html>
