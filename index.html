@@ -166,6 +166,19 @@
     #track-btn:disabled { background: var(--border); color: var(--text-dim); cursor: default; }
     #track-btn:not(:disabled):hover { background: #33eeff; }
 
+    #select-all-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-size: 0.82rem;
+      padding: 0.45rem 0.9rem;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    #select-all-btn:hover { border-color: var(--accent); color: var(--accent); }
+
     .list-message {
       padding: 2rem;
       text-align: center;
@@ -461,6 +474,48 @@
 
     #clock { color: var(--accent); }
 
+    /* ── admin view ── */
+    #logo-f { cursor: default; user-select: none; }
+
+    #view-admin {
+      padding: 1.25rem;
+      gap: 1.25rem;
+      overflow-y: auto;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .stat-sub {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+
     /* scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg); }
@@ -471,7 +526,7 @@
 <body>
 
 <header>
-  <h1>FRC Event Dashboard</h1>
+  <h1><span id="logo-f">F</span>RC Event Dashboard</h1>
   <span class="subtitle" id="header-subtitle">2026 Season</span>
   <span class="status-pill" id="conn-status">OFFLINE</span>
 </header>
@@ -489,6 +544,7 @@
 
   <div class="selector-footer">
     <span id="selected-count">0 selected</span>
+    <button id="select-all-btn">Select All</button>
     <button id="track-btn" disabled>Track Selected Events</button>
   </div>
 </div>
@@ -539,9 +595,46 @@
 
 </div>
 
+<!-- ── Admin / Diagnostics View ── -->
+<div class="view" id="view-admin">
+  <div class="dash-nav">
+    <button class="icon-btn" id="admin-back-btn">← Back</button>
+    <span class="dash-updated">Diagnostics</span>
+    <select class="icon-btn" id="admin-period" style="margin-left:auto">
+      <option value="minute">Past Minute</option>
+      <option value="hour">Past Hour</option>
+      <option value="day" selected>Past 24 Hours</option>
+      <option value="week">Past Week</option>
+      <option value="year">Past Year</option>
+    </select>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <span class="stat-label">Visits</span>
+      <span class="stat-value" id="stat-visits">—</span>
+      <span class="stat-sub">page loads in period</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Active Now</span>
+      <span class="stat-value" id="stat-active" style="color:var(--great)">—</span>
+      <span class="stat-sub">distinct IPs in last 5 min</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Unique IPs</span>
+      <span class="stat-value" id="stat-ips">—</span>
+      <span class="stat-sub">in selected period</span>
+    </div>
+  </div>
+</div>
+
 <footer>
   <span>FRC Event Dashboard v0.1</span>
   <span id="clock"></span>
+  <span style="margin-left:auto">
+    Powered by <a href="https://www.thebluealliance.com" target="_blank" rel="noopener"
+      style="color:var(--accent);text-decoration:none;">The Blue Alliance</a>
+  </span>
 </footer>
 
 <script>
@@ -695,6 +788,19 @@
 
   document.getElementById("event-search").addEventListener("input", e => {
     renderList(e.target.value);
+  });
+
+  document.getElementById("select-all-btn").addEventListener("click", () => {
+    const allSelected = allEvents.every(ev => selectedKeys.has(ev.key));
+    if (allSelected) {
+      // all already selected — deselect all
+      selectedKeys.clear();
+    } else {
+      allEvents.forEach(ev => selectedKeys.add(ev.key));
+    }
+    saveSelected();
+    renderList(document.getElementById("event-search").value);
+    updateSelectionUI();
   });
 
   document.getElementById("track-btn").addEventListener("click", showDashboard);
@@ -1069,7 +1175,45 @@
   tick();
   setInterval(tick, 1000);
 
+  // ── admin diagnostics ───────────────────────────────────────────────────────
+  async function loadAdminStats() {
+    const period = document.getElementById("admin-period").value;
+    try {
+      const res  = await fetch(`/analytics/stats?period=${period}`);
+      const data = await res.json();
+      document.getElementById("stat-visits").textContent = data.visits;
+      document.getElementById("stat-active").textContent = data.activeNow;
+      document.getElementById("stat-ips").textContent    = data.uniqueIPs;
+    } catch {
+      ["stat-visits", "stat-active", "stat-ips"].forEach(id => {
+        document.getElementById(id).textContent = "err";
+      });
+    }
+  }
+
+  document.getElementById("admin-period").addEventListener("change", loadAdminStats);
+
+  document.getElementById("admin-back-btn").addEventListener("click", () => {
+    showView(selectedKeys.size > 0 ? "view-dashboard" : "view-selector");
+  });
+
+  // Long-press (1.5 s) on the "F" in the header reveals the admin page
+  (() => {
+    const el = document.getElementById("logo-f");
+    let timer = null;
+    const start = () => { timer = setTimeout(() => { showView("view-admin"); loadAdminStats(); }, 1500); };
+    const cancel = () => clearTimeout(timer);
+    el.addEventListener("mousedown",  start);
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("mouseup",    cancel);
+    el.addEventListener("mouseleave", cancel);
+    el.addEventListener("touchend",   cancel);
+  })();
+
   // ── boot ────────────────────────────────────────────────────────────────────
+  // Ping analytics on every page load (fire-and-forget)
+  fetch("/analytics/ping", { method: "POST" }).catch(() => {});
+
   initSelector();
 </script>
 

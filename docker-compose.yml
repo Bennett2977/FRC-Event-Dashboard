@@ -8,3 +8,16 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+    depends_on:
+      - analytics
+
+  analytics:
+    build:
+      context: .
+      dockerfile: Dockerfile.analytics
+    volumes:
+      - analytics-data:/data
+    restart: unless-stopped
+
+volumes:
+  analytics-data:
