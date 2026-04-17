@@ -461,6 +461,25 @@
       margin-top: 0.1rem;
     }
 
+    .tba-action-btn {
+      display: inline-block;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      font-family: var(--font);
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      text-decoration: none;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .tba-action-btn:hover { background: var(--accent); color: #000; }
+
+    .tba-action-btn.stream-btn { color: #ff4444; border-color: #ff4444; }
+    .tba-action-btn.stream-btn:hover { background: #ff4444; color: #000; }
+
+    #leaderboard-panel .panel-body { overflow-x: auto; }
+
     /* ── footer ── */
     footer {
       padding: 0.5rem 1.25rem;
@@ -569,7 +588,13 @@
   <div class="panel" id="leaderboard-panel">
     <div class="panel-header panel-header-row">
       <span>Leaderboard — Schedule Status</span>
-      <button class="panel-toggle-btn" id="leaderboard-toggle">▾</button>
+      <div style="display:flex;gap:0.5rem;align-items:center">
+        <select class="icon-btn" id="sort-mode" style="font-size:0.7rem;padding:1px 1.2rem 1px 0.4rem">
+          <option value="on-time">Sort: On Time</option>
+          <option value="completion">Sort: Completion %</option>
+        </select>
+        <button class="panel-toggle-btn" id="leaderboard-toggle">▾</button>
+      </div>
     </div>
     <div class="panel-body">
       <table>
@@ -578,12 +603,16 @@
             <th style="width:2rem">#</th>
             <th>Event</th>
             <th>Location</th>
-            <th style="width:6rem">Quals</th>
+            <th style="width:7rem">Quals</th>
             <th style="width:10rem">Schedule</th>
+            <th style="width:10rem">Cycle Act/Sched</th>
+            <th style="width:4rem">Replays</th>
+            <th style="width:5rem">High Score</th>
+            <th>Links</th>
           </tr>
         </thead>
         <tbody id="leaderboard-tbody">
-          <tr><td colspan="5" class="dim" style="text-align:center;padding:1rem 0;">loading…</td></tr>
+          <tr><td colspan="9" class="dim" style="text-align:center;padding:1rem 0;">loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -652,9 +681,14 @@
   let allEvents    = [];
   let selectedKeys = new Set(JSON.parse(localStorage.getItem(LS_KEY) || "[]"));
   let pinnedKey    = localStorage.getItem(LS_KEY_PINNED) || null;
+  let sortMode     = localStorage.getItem("frc_sort_mode") || "on-time";
+  let lastEventData = null;
   let refreshTimer    = null;
   let countdownTimer  = null;
   let countdownSecs   = refreshIntervalMs / 1000;
+
+  // ETag cache for TBA API responses
+  const tbaCache = {};
 
   // ── helpers ────────────────────────────────────────────────────────────────
   function saveSelected() {
@@ -667,11 +701,15 @@
   }
 
   async function tbaFetch(path) {
-    const res = await fetch(TBA_BASE + path, {
-      headers: { "X-TBA-Auth-Key": API_KEY }
-    });
+    const headers = { "X-TBA-Auth-Key": API_KEY };
+    if (tbaCache[path]?.etag) headers["If-None-Match"] = tbaCache[path].etag;
+    const res = await fetch(TBA_BASE + path, { headers });
+    if (res.status === 304) return tbaCache[path].data;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    const etag = res.headers.get("ETag");
+    if (etag) tbaCache[path] = { etag, data };
+    return data;
   }
 
   function weekLabel(w) {
@@ -833,32 +871,70 @@
 
   // ── match processing ────────────────────────────────────────────────────────
   function processMatches(ev, matches) {
-    const quals  = matches.filter(m => m.comp_level === "qm");
-    const total  = quals.length;
+    const quals = matches.filter(m => m.comp_level === "qm");
+    const total = quals.length;
 
     if (total === 0) {
-      return { ev, total: 0, played: 0, pct: 0, currentNum: 0, delta: null };
+      return { ev, total: 0, played: 0, pct: 0, currentNum: 0, delta: null,
+               avgCycleActual: null, avgCycleScheduled: null, replayCount: 0, highScoreMatch: null };
     }
 
-    const played     = quals.filter(m => m.actual_time !== null);
+    const played      = quals.filter(m => m.actual_time !== null);
     const playedCount = played.length;
-    const pct        = Math.round((playedCount / total) * 100);
+    const pct         = Math.round((playedCount / total) * 100);
 
     const lastPlayed = played.reduce(
-      (best, m) => !best || m.match_number > best.match_number ? m : best,
-      null
+      (best, m) => !best || m.match_number > best.match_number ? m : best, null
     );
-
     const currentNum = lastPlayed ? lastPlayed.match_number : 0;
 
-    // delta: positive = ahead, negative = behind (seconds → minutes)
     let delta = null;
     if (lastPlayed && lastPlayed.time && lastPlayed.actual_time) {
       delta = (lastPlayed.time - lastPlayed.actual_time) / 60;
     }
 
+    // Replays: played matches with no pre-scheduled time slot
+    const replayCount = quals.filter(m => m.actual_time !== null && m.time === null).length;
+
+    // Scheduled cycle time — exclude gaps > 20 min (planned breaks)
+    const scheduledSorted = quals.filter(m => m.time != null).sort((a, b) => a.time - b.time);
+    let avgCycleScheduled = null;
+    if (scheduledSorted.length >= 2) {
+      const gaps = [];
+      for (let i = 1; i < scheduledSorted.length; i++) {
+        const gap = (scheduledSorted[i].time - scheduledSorted[i - 1].time) / 60;
+        if (gap <= 20) gaps.push(gap);
+      }
+      if (gaps.length) avgCycleScheduled = gaps.reduce((s, v) => s + v, 0) / gaps.length;
+    }
+
+    // Actual cycle time — exclude gaps > 20 min (lunch/EOD breaks)
+    const playedSorted = [...played].sort((a, b) => a.actual_time - b.actual_time);
+    let avgCycleActual = null;
+    if (playedSorted.length >= 2) {
+      const gaps = [];
+      for (let i = 1; i < playedSorted.length; i++) {
+        const gap = (playedSorted[i].actual_time - playedSorted[i - 1].actual_time) / 60;
+        if (gap <= 20) gaps.push(gap);
+      }
+      if (gaps.length) avgCycleActual = gaps.reduce((s, v) => s + v, 0) / gaps.length;
+    }
+
+    // High score — both alliance scores from the match with the highest single-alliance score
+    let highScoreMatch = null;
+    for (const m of played) {
+      const r = m.alliances?.red?.score ?? -1;
+      const b = m.alliances?.blue?.score ?? -1;
+      const top = Math.max(r, b);
+      if (top < 0) continue;
+      if (highScoreMatch === null || top > Math.max(highScoreMatch.red, highScoreMatch.blue)) {
+        highScoreMatch = { red: r >= 0 ? r : null, blue: b >= 0 ? b : null };
+      }
+    }
+
     const breakStatus = getScheduleStatus(quals);
-    return { ev, total, played: playedCount, pct, currentNum, delta, breakStatus };
+    return { ev, total, played: playedCount, pct, currentNum, delta, breakStatus,
+             avgCycleActual, avgCycleScheduled, replayCount, highScoreMatch };
   }
 
   // ── schedule status helpers ─────────────────────────────────────────────────
@@ -872,14 +948,16 @@
 
   function deltaLabel(delta) {
     if (delta === null) return "no schedule data";
-    const abs = Math.abs(delta).toFixed(1);
-    return delta >= 0 ? `+${abs} min ahead` : `${abs} min behind`;
+    if (delta > 1)  return `+${delta.toFixed(1)} min ahead`;
+    if (delta >= -1) return "On Time 🎉";
+    return `${Math.abs(delta).toFixed(1)} min behind`;
   }
 
   function badgeText(delta) {
     if (delta === null) return "—";
-    const abs = Math.abs(delta).toFixed(1);
-    return delta >= 0 ? `▲ +${abs}m` : `▼ ${abs}m`;
+    if (delta > 1)  return `▲ +${delta.toFixed(1)}m`;
+    if (delta >= -1) return "✓";
+    return `▼ ${Math.abs(delta).toFixed(1)}m`;
   }
 
   // ── stream detection ────────────────────────────────────────────────────────
@@ -926,7 +1004,9 @@
         ]);
         const matchData = processMatches(ev, matches);
         const streamUrl = await getStreamUrl(eventDetail);
-        return { ...matchData, streamUrl };
+        const firstCode = eventDetail.first_event_code || ev.key.slice(4).toUpperCase();
+        const agendaUrl = `https://frc-events.firstinspires.org/${ev.key.slice(0, 4)}/${firstCode}/agenda`;
+        return { ...matchData, streamUrl, agendaUrl };
       })
     );
 
@@ -936,6 +1016,7 @@
                streamUrl: null, breakStatus: null, error: r.reason.message };
     });
 
+    lastEventData = eventData;
     renderLeaderboard(eventData);
     renderCards(eventData);
 
@@ -948,12 +1029,7 @@
 
   // ── leaderboard ─────────────────────────────────────────────────────────────
   function renderLeaderboard(eventData) {
-    const sorted = [...eventData].sort((a, b) => {
-      if (a.delta === null && b.delta === null) return 0;
-      if (a.delta === null) return 1;
-      if (b.delta === null) return -1;
-      return b.delta - a.delta;
-    });
+    const sorted = sortEventData(eventData);
 
     const cssColor = sc =>
       ({ great: "var(--great)", good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", dim: "var(--text-dim)" })[sc];
@@ -961,9 +1037,8 @@
     document.getElementById("leaderboard-tbody").innerHTML = sorted.map((d, i) => {
       const sc  = statusClass(d.delta);
       const col = cssColor(sc);
-      const progress = d.total > 0
-        ? `${d.played}/${d.total} (${d.pct}%)`
-        : "no schedule";
+      const progress = d.total > 0 ? `${d.played}/${d.total} (${d.pct}%)` : "no schedule";
+
       const schedule = d.error
         ? `<span style="color:var(--bad)">ERROR</span>`
         : d.breakStatus === "END_OF_DAY"
@@ -971,25 +1046,59 @@
           : d.breakStatus === "LUNCH"
             ? `<span style="color:var(--warn)">Lunch Break</span>`
             : `<span style="color:${col}">${deltaLabel(d.delta)}</span>`;
+
+      const tbaBase  = `https://www.thebluealliance.com/event/${d.ev.key}`;
+
+      const cycleStr = d.avgCycleActual !== null
+        ? `${d.avgCycleActual.toFixed(1)}m / ${d.avgCycleScheduled !== null ? d.avgCycleScheduled.toFixed(1) + "m" : "—"}`
+        : "—";
+
+      let highStr = "—";
+      if (d.highScoreMatch) {
+        const r = d.highScoreMatch.red, b = d.highScoreMatch.blue;
+        const rWon = r !== null && (b === null || r >= b);
+        const bWon = b !== null && (r === null || b > r);
+        highStr = `<span style="color:#ef5350${rWon ? ";font-weight:bold" : ""}">${r ?? "—"}</span>`
+                + `<span class="dim"> / </span>`
+                + `<span style="color:#42a5f5${bWon ? ";font-weight:bold" : ""}">${b ?? "—"}</span>`;
+      }
+
+      const webcasts = d.streamUrl
+        ? `<a class="tba-action-btn stream-btn" href="${d.streamUrl}" target="_blank" rel="noopener">▶ Webcast</a>`
+        : `<span style="color:var(--text-dim);font-size:0.68rem;font-style:italic">offline</span>`;
+
+      const agendaBtn = d.agendaUrl
+        ? `<a class="tba-action-btn" href="${d.agendaUrl}" target="_blank" rel="noopener">📋 Agenda</a>`
+        : "";
+
       return `
         <tr>
           <td class="dim">${i + 1}</td>
-          <td class="accent">${d.ev.name}</td>
+          <td><a href="${tbaBase}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">${d.ev.name}</a></td>
           <td class="dim">${locationStr(d.ev)}</td>
           <td>${progress}</td>
           <td>${schedule}</td>
+          <td class="dim" style="font-size:0.72rem">${cycleStr}</td>
+          <td class="dim" style="text-align:center">${d.replayCount ?? 0}</td>
+          <td>${highStr}</td>
+          <td style="white-space:nowrap;display:flex;gap:0.3rem;align-items:center;padding:0.3rem 0.5rem">${webcasts} ${agendaBtn}</td>
         </tr>`;
     }).join("") ||
-      `<tr><td colspan="5" class="dim" style="text-align:center;padding:1rem 0;">// no data</td></tr>`;
+      `<tr><td colspan="9" class="dim" style="text-align:center;padding:1rem 0;">// no data</td></tr>`;
   }
 
   // ── event cards ─────────────────────────────────────────────────────────────
   function sortEventData(eventData) {
+    // 0 = active, 1 = end of day, 2 = no schedule
+    const group = d => d.total === 0 ? 2 : d.breakStatus === "END_OF_DAY" ? 1 : 0;
+
     return [...eventData].sort((a, b) => {
-      const aPin = a.ev.key === pinnedKey;
-      const bPin = b.ev.key === pinnedKey;
+      const aPin = a.ev.key === pinnedKey, bPin = b.ev.key === pinnedKey;
       if (aPin !== bPin) return aPin ? -1 : 1;
-      // most ahead (highest delta) first; null deltas go last
+      const ag = group(a), bg = group(b);
+      if (ag !== bg) return ag - bg;
+      if (sortMode === "completion") return b.pct - a.pct;
+      // on-time sort: most ahead first, null last
       if (a.delta === null && b.delta === null) return 0;
       if (a.delta === null) return 1;
       if (b.delta === null) return -1;
@@ -1130,6 +1239,18 @@
   leaderboardToggle.addEventListener("click", () => {
     const collapsed = leaderboardPanel.classList.toggle("collapsed");
     localStorage.setItem("frc_leaderboard_collapsed", collapsed ? "1" : "0");
+  });
+
+  // ── sort mode ───────────────────────────────────────────────────────────────
+  const sortModeEl = document.getElementById("sort-mode");
+  sortModeEl.value = sortMode;
+  sortModeEl.addEventListener("change", () => {
+    sortMode = sortModeEl.value;
+    localStorage.setItem("frc_sort_mode", sortMode);
+    if (lastEventData) {
+      renderLeaderboard(lastEventData);
+      renderCards(lastEventData);
+    }
   });
 
   // initialise dropdown to saved value
