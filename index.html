@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FRC Event Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐕</text></svg>">
   <script src="/config.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -401,9 +402,9 @@
             <th>Event</th>
             <th>Location</th>
             <th style="width:7rem">Quals</th>
-            <th style="width:10rem">Schedule</th>
+            <th style="width:7rem">Playoffs</th>
+            <th style="width:10rem">Sched</th>
             <th style="width:10rem">Cycle Act/Sched</th>
-            <th style="width:4rem">Replays</th>
             <th style="width:5rem">High Score</th>
             <th>Links</th>
           </tr>
@@ -629,67 +630,88 @@
     const quals = matches.filter(m => m.comp_level === "qm");
     const total = quals.length;
 
-    if (total === 0) {
-      return { ev, total: 0, played: 0, pct: 0, currentNum: 0, delta: null,
-               avgCycleActual: null, avgCycleScheduled: null, replayCount: 0, highScoreMatch: null };
-    }
+    // ── qual fields ──
+    let playedCount = 0, pct = 0, currentNum = 0, delta = null, breakStatus = null,
+        avgCycleActual = null, avgCycleScheduled = null, highScoreMatch = null;
 
-    const played      = quals.filter(m => m.actual_time !== null);
-    const playedCount = played.length;
-    const pct         = Math.round((playedCount / total) * 100);
+    if (total > 0) {
+      const played = quals.filter(m => m.actual_time !== null);
+      playedCount  = played.length;
+      pct          = Math.round((playedCount / total) * 100);
 
-    const lastPlayed = played.reduce(
-      (best, m) => !best || m.match_number > best.match_number ? m : best, null
-    );
-    const currentNum = lastPlayed ? lastPlayed.match_number : 0;
+      const lastPlayed = played.reduce(
+        (best, m) => !best || m.match_number > best.match_number ? m : best, null
+      );
+      currentNum = lastPlayed ? lastPlayed.match_number : 0;
 
-    let delta = null;
-    if (lastPlayed && lastPlayed.time && lastPlayed.actual_time) {
-      delta = (lastPlayed.time - lastPlayed.actual_time) / 60;
-    }
+      if (lastPlayed?.time && lastPlayed?.actual_time)
+        delta = (lastPlayed.time - lastPlayed.actual_time) / 60;
 
-    // Replays: played matches with no pre-scheduled time slot
-    const replayCount = quals.filter(m => m.actual_time !== null && m.time === null).length;
 
-    // Scheduled cycle time — exclude gaps > 20 min (planned breaks)
-    const scheduledSorted = quals.filter(m => m.time != null).sort((a, b) => a.time - b.time);
-    let avgCycleScheduled = null;
-    if (scheduledSorted.length >= 2) {
-      const gaps = [];
-      for (let i = 1; i < scheduledSorted.length; i++) {
-        const gap = (scheduledSorted[i].time - scheduledSorted[i - 1].time) / 60;
-        if (gap <= 20) gaps.push(gap);
+      // Scheduled cycle time — exclude gaps > 20 min (planned breaks)
+      const scheduledSorted = quals.filter(m => m.time != null).sort((a, b) => a.time - b.time);
+      if (scheduledSorted.length >= 2) {
+        const gaps = [];
+        for (let i = 1; i < scheduledSorted.length; i++) {
+          const gap = (scheduledSorted[i].time - scheduledSorted[i - 1].time) / 60;
+          if (gap <= 20) gaps.push(gap);
+        }
+        if (gaps.length) avgCycleScheduled = gaps.reduce((s, v) => s + v, 0) / gaps.length;
       }
-      if (gaps.length) avgCycleScheduled = gaps.reduce((s, v) => s + v, 0) / gaps.length;
-    }
 
-    // Actual cycle time — exclude gaps > 20 min (lunch/EOD breaks)
-    const playedSorted = [...played].sort((a, b) => a.actual_time - b.actual_time);
-    let avgCycleActual = null;
-    if (playedSorted.length >= 2) {
-      const gaps = [];
-      for (let i = 1; i < playedSorted.length; i++) {
-        const gap = (playedSorted[i].actual_time - playedSorted[i - 1].actual_time) / 60;
-        if (gap <= 20) gaps.push(gap);
+      // Actual cycle time — exclude gaps > 20 min (lunch/EOD breaks)
+      const playedSorted = [...played].sort((a, b) => a.actual_time - b.actual_time);
+      if (playedSorted.length >= 2) {
+        const gaps = [];
+        for (let i = 1; i < playedSorted.length; i++) {
+          const gap = (playedSorted[i].actual_time - playedSorted[i - 1].actual_time) / 60;
+          if (gap <= 20) gaps.push(gap);
+        }
+        if (gaps.length) avgCycleActual = gaps.reduce((s, v) => s + v, 0) / gaps.length;
       }
-      if (gaps.length) avgCycleActual = gaps.reduce((s, v) => s + v, 0) / gaps.length;
+
+      // High score
+      for (const m of played) {
+        const r = m.alliances?.red?.score ?? -1;
+        const b = m.alliances?.blue?.score ?? -1;
+        const top = Math.max(r, b);
+        if (top < 0) continue;
+        if (highScoreMatch === null || top > Math.max(highScoreMatch.red, highScoreMatch.blue))
+          highScoreMatch = { red: r >= 0 ? r : null, blue: b >= 0 ? b : null, matchKey: m.key };
+      }
+
+      breakStatus = getScheduleStatus(quals);
     }
 
-    // High score — both alliance scores from the match with the highest single-alliance score
-    let highScoreMatch = null;
-    for (const m of played) {
-      const r = m.alliances?.red?.score ?? -1;
-      const b = m.alliances?.blue?.score ?? -1;
-      const top = Math.max(r, b);
-      if (top < 0) continue;
-      if (highScoreMatch === null || top > Math.max(highScoreMatch.red, highScoreMatch.blue)) {
-        highScoreMatch = { red: r >= 0 ? r : null, blue: b >= 0 ? b : null, matchKey: m.key };
+    // ── playoff fields ──
+    const levelRank  = { qf: 1, sf: 2, f: 3 };
+    const poMatches  = matches.filter(m => m.comp_level !== "qm");
+    const poPlayed   = poMatches.filter(m => m.actual_time !== null);
+    let playoffCount = poPlayed.length;
+    let playoffDelta = null, playoffRound = null, playoffComplete = false;
+
+    if (poPlayed.length > 0) {
+      const lastPO = poPlayed.reduce((best, m) => m.actual_time > best.actual_time ? m : best);
+      if (lastPO.time && lastPO.actual_time)
+        playoffDelta = (lastPO.time - lastPO.actual_time) / 60;
+
+      const topLevel = poPlayed.reduce((best, m) =>
+        (levelRank[m.comp_level] ?? 0) > (levelRank[best.comp_level] ?? 0) ? m : best
+      ).comp_level;
+      playoffRound = topLevel === "f" ? "Finals" : "Playoffs";
+
+      // Finals complete when one alliance reaches 2 wins
+      if (topLevel === "f") {
+        const finals = poPlayed.filter(m => m.comp_level === "f");
+        const redWins  = finals.filter(m => m.winning_alliance === "red").length;
+        const blueWins = finals.filter(m => m.winning_alliance === "blue").length;
+        playoffComplete = redWins >= 2 || blueWins >= 2;
       }
     }
 
-    const breakStatus = getScheduleStatus(quals);
     return { ev, total, played: playedCount, pct, currentNum, delta, breakStatus,
-             avgCycleActual, avgCycleScheduled, replayCount, highScoreMatch };
+             avgCycleActual, avgCycleScheduled, highScoreMatch,
+             playoffCount, playoffDelta, playoffRound, playoffComplete };
   }
 
   // ── schedule status helpers ─────────────────────────────────────────────────
@@ -744,7 +766,8 @@
     const eventData = results.map((r, i) => {
       if (r.status === "fulfilled") return r.value;
       return { ev: tracked[i], total: 0, played: 0, pct: 0, currentNum: 0, delta: null,
-               streamUrl: null, breakStatus: null, error: r.reason.message };
+               streamUrl: null, breakStatus: null, playoffCount: 0, playoffDelta: null,
+               playoffRound: null, error: r.reason.message };
     });
 
     lastEventData = eventData;
@@ -765,19 +788,35 @@
       ({ great: "var(--great)", good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", dim: "var(--text-dim)" })[sc];
 
     document.getElementById("leaderboard-tbody").innerHTML = sorted.map((d, i) => {
-      const sc  = statusClass(d.delta);
-      const col = cssColor(sc);
-      const progress = d.total > 0 ? `${d.played}/${d.total} (${d.pct}%)` : "no schedule";
-
-      const schedule = d.error
-        ? `<span style="color:var(--bad)">ERROR</span>`
-        : d.breakStatus === "END_OF_DAY"
-          ? `<span style="color:var(--accent)">End of Day</span>`
-          : d.breakStatus === "LUNCH"
-            ? `<span style="color:var(--warn)">Lunch Break</span>`
-            : `<span style="color:${col}">${deltaLabel(d.delta)}</span>`;
 
       const tbaBase  = `https://www.thebluealliance.com/event/${d.ev.key}`;
+
+      // Quals cell — gray out once playoffs begin, green when complete
+      const qualsColor = d.total === 0 ? "var(--text-dim)"
+        : d.pct === 100 && d.playoffCount > 0 ? "var(--text-dim)"
+        : d.pct === 100                        ? "var(--great)"
+        : "var(--text)";
+      const qualsStr = d.total === 0
+        ? `<span class="dim">no schedule</span>`
+        : `<span style="color:${qualsColor}">${d.played}/${d.total} (${d.pct}%)</span>`;
+
+      // Playoffs cell — green when complete
+      const playoffsStr = d.playoffCount === 0
+        ? `<span class="dim">—</span>`
+        : `<span style="color:${d.playoffComplete ? "var(--great)" : "var(--text)"}">` +
+          `${d.playoffRound} · ${d.playoffCount}</span>`;
+
+      // Single unified schedule column — uses playoff delta once playoffs begin
+      const activeDelta = d.playoffCount > 0 ? d.playoffDelta : d.delta;
+      const schedStr = d.error
+        ? `<span style="color:var(--bad)">ERROR</span>`
+        : d.playoffComplete
+          ? `<span style="color:var(--great)">Complete</span>`
+          : d.playoffCount === 0 && d.breakStatus === "END_OF_DAY"
+            ? `<span style="color:var(--accent)">End of Day</span>`
+          : d.playoffCount === 0 && d.breakStatus === "LUNCH"
+            ? `<span style="color:var(--warn)">Lunch Break</span>`
+            : `<span style="color:${cssColor(statusClass(activeDelta))}">${deltaLabel(activeDelta)}</span>`;
 
       const cycleStr = d.avgCycleActual !== null
         ? `${d.avgCycleActual.toFixed(1)}m / ${d.avgCycleScheduled !== null ? d.avgCycleScheduled.toFixed(1) + "m" : "—"}`
@@ -808,10 +847,10 @@
           <td class="dim">${i + 1}</td>
           <td><a href="${tbaBase}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">${d.ev.name}</a></td>
           <td class="dim">${locationStr(d.ev)}</td>
-          <td>${progress}</td>
-          <td>${schedule}</td>
+          <td>${qualsStr}</td>
+          <td>${playoffsStr}</td>
+          <td>${schedStr}</td>
           <td class="dim" style="font-size:0.72rem">${cycleStr}</td>
-          <td class="dim" style="text-align:center">${d.replayCount ?? 0}</td>
           <td style="white-space:nowrap">${highStr}</td>
           <td style="white-space:nowrap;display:flex;gap:0.3rem;align-items:center;padding:0.3rem 0.5rem">${webcasts} ${agendaBtn}</td>
         </tr>`;
