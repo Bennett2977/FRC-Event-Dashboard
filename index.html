@@ -262,22 +262,6 @@
       align-items: center;
     }
 
-    .panel-toggle-btn {
-      background: none;
-      border: none;
-      color: var(--text-dim);
-      font-size: 0.85rem;
-      cursor: pointer;
-      padding: 0 0.2rem;
-      line-height: 1;
-      transition: transform 0.2s;
-    }
-
-    .panel-toggle-btn:hover { color: var(--accent); }
-    .panel.collapsed .panel-body { display: none; }
-    .panel.collapsed .panel-header { border-bottom: none; }
-    .panel.collapsed .panel-toggle-btn { transform: rotate(-90deg); }
-
     .card-break-status {
       text-align: center;
       font-size: 0.72rem;
@@ -315,151 +299,6 @@
     .good   { color: var(--good); }
     .warn   { color: var(--warn); }
     .bad    { color: var(--bad); }
-
-    /* ── event cards ── */
-    .cards-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 1.25rem;
-    }
-
-    .event-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-left-width: 3px;
-      padding: 0.85rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.55rem;
-    }
-
-    .event-card.status-great { border-left-color: var(--great); }
-    .event-card.status-good  { border-left-color: var(--good); }
-    .event-card.status-warn  { border-left-color: var(--warn); }
-    .event-card.status-bad   { border-left-color: var(--bad);  }
-    .event-card.status-dim   { border-left-color: var(--border); }
-
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 0.5rem;
-    }
-
-    .card-name {
-      color: var(--text);
-      font-size: 0.82rem;
-      line-height: 1.3;
-    }
-
-    .card-badge {
-      font-size: 0.7rem;
-      padding: 1px 5px;
-      border: 1px solid;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .event-card.status-great .card-badge { color: var(--great); border-color: var(--great); }
-    .event-card.status-good  .card-badge { color: var(--good);  border-color: var(--good);  }
-    .event-card.status-warn  .card-badge { color: var(--warn);  border-color: var(--warn);  }
-    .event-card.status-bad   .card-badge { color: var(--bad);   border-color: var(--bad);   }
-    .event-card.status-dim   .card-badge { color: var(--text-dim); border-color: var(--border); }
-
-    .card-location { color: var(--text-dim); font-size: 0.72rem; }
-
-    .card-progress-wrap {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      margin-top: 0.1rem;
-    }
-
-    .card-progress-bar {
-      flex: 1;
-      height: 5px;
-      background: var(--border);
-    }
-
-    .card-progress-fill { height: 100%; transition: width 0.5s ease; }
-
-    .event-card.status-great .card-progress-fill { background: var(--great); }
-    .event-card.status-good  .card-progress-fill { background: var(--good);  }
-    .event-card.status-warn  .card-progress-fill { background: var(--warn);  }
-    .event-card.status-bad   .card-progress-fill { background: var(--bad);   }
-    .event-card.status-dim   .card-progress-fill { background: var(--text-dim); }
-
-    .card-pct {
-      color: var(--text-dim);
-      font-size: 0.72rem;
-      min-width: 2.8em;
-      text-align: right;
-    }
-
-    .card-stats {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.72rem;
-      color: var(--text-dim);
-      gap: 0.5rem;
-    }
-
-    .card-pin-btn {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      font-family: var(--font);
-      font-size: 0.68rem;
-      padding: 1px 5px;
-      cursor: pointer;
-      letter-spacing: 0.04em;
-      flex-shrink: 0;
-    }
-
-    .card-pin-btn:hover { border-color: var(--accent2); color: var(--accent2); }
-
-    .card-pin-btn.pinned {
-      border-color: var(--accent2);
-      color: var(--accent2);
-    }
-
-    .event-card.pinned-card {
-      border-top: 2px solid var(--accent2);
-    }
-
-    .card-delta.great { color: var(--great); }
-    .card-delta.good  { color: var(--good);  }
-    .card-delta.warn  { color: var(--warn);  }
-    .card-delta.bad   { color: var(--bad);   }
-
-    .card-stream-btn {
-      display: inline-block;
-      color: #ff4444;
-      border: 1px solid #ff4444;
-      font-family: var(--font);
-      font-size: 0.7rem;
-      padding: 2px 8px;
-      text-decoration: none;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .card-stream-btn:hover { background: #ff4444; color: #000; }
-
-    .card-stream-offline {
-      color: var(--text-dim);
-      font-size: 0.7rem;
-      font-style: italic;
-    }
-
-    .card-footer {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      padding-top: 0.4rem;
-      border-top: 1px solid #1a1a1a;
-      margin-top: 0.1rem;
-    }
 
     .tba-action-btn {
       display: inline-block;
@@ -592,8 +431,8 @@
         <select class="icon-btn" id="sort-mode" style="font-size:0.7rem;padding:1px 1.2rem 1px 0.4rem">
           <option value="on-time">Sort: On Time</option>
           <option value="completion">Sort: Completion %</option>
+          <option value="high-score">Sort: High Score</option>
         </select>
-        <button class="panel-toggle-btn" id="leaderboard-toggle">▾</button>
       </div>
     </div>
     <div class="panel-body">
@@ -618,9 +457,6 @@
     </div>
   </div>
 
-  <div class="cards-grid" id="cards-grid">
-    <div class="list-message">loading…</div>
-  </div>
 
 </div>
 
@@ -672,7 +508,6 @@
   const TBA_BASE    = "https://www.thebluealliance.com/api/v3";
   const YT_API_BASE = "https://www.googleapis.com/youtube/v3";
   const LS_KEY        = "frc_selected_event_keys";
-  const LS_KEY_PINNED = "frc_pinned_event_key";
   const REFRESH_OPTIONS_MS = { "30s": 30_000, "1m": 60_000, "2m": 120_000, "5m": 300_000, "10m": 600_000 };
   const LS_KEY_REFRESH     = "frc_refresh_rate";
   let   refreshIntervalMs  = REFRESH_OPTIONS_MS[localStorage.getItem(LS_KEY_REFRESH)] ?? 60_000;
@@ -680,7 +515,6 @@
   // ── state ──────────────────────────────────────────────────────────────────
   let allEvents    = [];
   let selectedKeys = new Set(JSON.parse(localStorage.getItem(LS_KEY) || "[]"));
-  let pinnedKey    = localStorage.getItem(LS_KEY_PINNED) || null;
   let sortMode     = localStorage.getItem("frc_sort_mode") || "on-time";
   let lastEventData = null;
   let refreshTimer    = null;
@@ -693,11 +527,6 @@
   // ── helpers ────────────────────────────────────────────────────────────────
   function saveSelected() {
     localStorage.setItem(LS_KEY, JSON.stringify([...selectedKeys]));
-  }
-
-  function savePinned() {
-    if (pinnedKey) localStorage.setItem(LS_KEY_PINNED, pinnedKey);
-    else           localStorage.removeItem(LS_KEY_PINNED);
   }
 
   async function tbaFetch(path) {
@@ -928,7 +757,7 @@
       const top = Math.max(r, b);
       if (top < 0) continue;
       if (highScoreMatch === null || top > Math.max(highScoreMatch.red, highScoreMatch.blue)) {
-        highScoreMatch = { red: r >= 0 ? r : null, blue: b >= 0 ? b : null };
+        highScoreMatch = { red: r >= 0 ? r : null, blue: b >= 0 ? b : null, matchKey: m.key };
       }
     }
 
@@ -953,39 +782,14 @@
     return `${Math.abs(delta).toFixed(1)} min behind`;
   }
 
-  function badgeText(delta) {
-    if (delta === null) return "—";
-    if (delta > 1)  return `▲ +${delta.toFixed(1)}m`;
-    if (delta >= -1) return "✓";
-    return `▼ ${Math.abs(delta).toFixed(1)}m`;
-  }
-
-  // ── stream detection ────────────────────────────────────────────────────────
-  async function getStreamUrl(eventDetail) {
+// ── stream detection ────────────────────────────────────────────────────────
+  function getStreamUrl(eventDetail) {
     const webcasts = eventDetail.webcasts || [];
     const yt = webcasts.find(w => w.type === "youtube");
     if (!yt) return null;
-
     const videoId = yt.file || yt.channel;
     if (!videoId) return null;
-
-    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
-
-    // Without an API key fall back to showing the link unconditionally.
-    if (!YT_API_KEY) return watchUrl;
-
-    try {
-      const res  = await fetch(
-        `${YT_API_BASE}/videos?part=snippet&id=${videoId}&key=${YT_API_KEY}`
-      );
-      const data = await res.json();
-      const item = data.items?.[0];
-      // liveBroadcastContent is "live" only while actively streaming.
-      return item?.snippet?.liveBroadcastContent === "live" ? watchUrl : null;
-    } catch {
-      // Network error — fall back to showing the link so we don't hide a live stream.
-      return watchUrl;
-    }
+    return `https://www.youtube.com/watch?v=${videoId}`;
   }
 
   // ── dashboard load ──────────────────────────────────────────────────────────
@@ -1003,9 +807,10 @@
           tbaFetch(`/event/${ev.key}`)
         ]);
         const matchData = processMatches(ev, matches);
-        const streamUrl = await getStreamUrl(eventDetail);
-        const firstCode = eventDetail.first_event_code || ev.key.slice(4).toUpperCase();
-        const agendaUrl = `https://frc-events.firstinspires.org/${ev.key.slice(0, 4)}/${firstCode}/agenda`;
+        const streamUrl = getStreamUrl(eventDetail);
+        const year = ev.key.slice(0, 4);
+        const code = ev.key.slice(4).toUpperCase();
+        const agendaUrl = `https://info.firstinspires.org/hubfs/web/event/frc/${year}/${year}_${code}_Agenda.pdf`;
         return { ...matchData, streamUrl, agendaUrl };
       })
     );
@@ -1018,7 +823,6 @@
 
     lastEventData = eventData;
     renderLeaderboard(eventData);
-    renderCards(eventData);
 
     const ts = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
     document.getElementById("dash-updated").textContent = `updated ${ts}`;
@@ -1058,14 +862,16 @@
         const r = d.highScoreMatch.red, b = d.highScoreMatch.blue;
         const rWon = r !== null && (b === null || r >= b);
         const bWon = b !== null && (r === null || b > r);
-        highStr = `<span style="color:#ef5350${rWon ? ";font-weight:bold" : ""}">${r ?? "—"}</span>`
-                + `<span class="dim"> / </span>`
-                + `<span style="color:#42a5f5${bWon ? ";font-weight:bold" : ""}">${b ?? "—"}</span>`;
+        const inner = `<span style="color:#ef5350${rWon ? ";font-weight:bold" : ""}">${r ?? "—"}</span>`
+                    + `<span class="dim"> / </span>`
+                    + `<span style="color:#42a5f5${bWon ? ";font-weight:bold" : ""}">${b ?? "—"}</span>`;
+        const matchUrl = `https://www.thebluealliance.com/match/${d.highScoreMatch.matchKey}`;
+        highStr = `<a href="${matchUrl}" target="_blank" rel="noopener" style="text-decoration:none">${inner}</a>`;
       }
 
       const webcasts = d.streamUrl
         ? `<a class="tba-action-btn stream-btn" href="${d.streamUrl}" target="_blank" rel="noopener">▶ Webcast</a>`
-        : `<span style="color:var(--text-dim);font-size:0.68rem;font-style:italic">offline</span>`;
+        : `<span class="tba-action-btn stream-btn" style="opacity:0.3;cursor:default">▶ Webcast</span>`;
 
       const agendaBtn = d.agendaUrl
         ? `<a class="tba-action-btn" href="${d.agendaUrl}" target="_blank" rel="noopener">📋 Agenda</a>`
@@ -1080,7 +886,7 @@
           <td>${schedule}</td>
           <td class="dim" style="font-size:0.72rem">${cycleStr}</td>
           <td class="dim" style="text-align:center">${d.replayCount ?? 0}</td>
-          <td>${highStr}</td>
+          <td style="white-space:nowrap">${highStr}</td>
           <td style="white-space:nowrap;display:flex;gap:0.3rem;align-items:center;padding:0.3rem 0.5rem">${webcasts} ${agendaBtn}</td>
         </tr>`;
     }).join("") ||
@@ -1093,75 +899,20 @@
     const group = d => d.total === 0 ? 2 : d.breakStatus === "END_OF_DAY" ? 1 : 0;
 
     return [...eventData].sort((a, b) => {
-      const aPin = a.ev.key === pinnedKey, bPin = b.ev.key === pinnedKey;
-      if (aPin !== bPin) return aPin ? -1 : 1;
       const ag = group(a), bg = group(b);
       if (ag !== bg) return ag - bg;
       if (sortMode === "completion") return b.pct - a.pct;
+      if (sortMode === "high-score") {
+        const aTop = a.highScoreMatch ? Math.max(a.highScoreMatch.red ?? 0, a.highScoreMatch.blue ?? 0) : -1;
+        const bTop = b.highScoreMatch ? Math.max(b.highScoreMatch.red ?? 0, b.highScoreMatch.blue ?? 0) : -1;
+        return bTop - aTop;
+      }
       // on-time sort: most ahead first, null last
       if (a.delta === null && b.delta === null) return 0;
       if (a.delta === null) return 1;
       if (b.delta === null) return -1;
       return b.delta - a.delta;
     });
-  }
-
-  function renderCards(eventData) {
-    const grid = document.getElementById("cards-grid");
-
-    if (!eventData.length) {
-      grid.innerHTML = `<div class="list-message">// no events tracked</div>`;
-      return;
-    }
-
-    grid.innerHTML = sortEventData(eventData).map(d => {
-      const sc       = statusClass(d.delta);
-      const isPinned = d.ev.key === pinnedKey;
-
-      const matchStr = d.total === 0
-        ? "no qual schedule"
-        : d.played === 0
-          ? `0 of ${d.total} played`
-          : `QM${d.currentNum} of ${d.total}`;
-
-      const deltaStr = d.error ? d.error : deltaLabel(d.delta);
-
-      const streamEl = d.streamUrl
-        ? `<a class="card-stream-btn" href="${d.streamUrl}" target="_blank" rel="noopener">▶ Watch Webcast</a>`
-        : `<span class="card-stream-offline">Webcast Offline</span>`;
-
-      const breakEl = d.breakStatus
-        ? `<div class="card-break-status ${d.breakStatus === "LUNCH" ? "break-lunch" : "break-eod"}">
-             ${d.breakStatus === "LUNCH" ? "// Lunch Break" : "// End of Day"}
-           </div>`
-        : "";
-
-      return `
-        <div class="event-card status-${sc}${isPinned ? " pinned-card" : ""}" data-key="${d.ev.key}">
-          <div class="card-header">
-            <span class="card-name">${d.ev.name}</span>
-            <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0">
-              <button class="card-pin-btn${isPinned ? " pinned" : ""}" data-pin="${d.ev.key}">
-                ${isPinned ? "★ pinned" : "☆ pin"}
-              </button>
-              <span class="card-badge">${d.error ? "ERR" : badgeText(d.delta)}</span>
-            </div>
-          </div>
-          <div class="card-location">${locationStr(d.ev)} · ${weekLabel(d.ev.week)}</div>
-          <div class="card-progress-wrap">
-            <div class="card-progress-bar">
-              <div class="card-progress-fill" style="width:${d.pct}%"></div>
-            </div>
-            <span class="card-pct">${d.pct}%</span>
-          </div>
-          <div class="card-stats">
-            <span>${matchStr}</span>
-            <span class="card-delta ${sc}">${deltaStr}</span>
-          </div>
-          ${breakEl}
-          <div class="card-footer">${streamEl}</div>
-        </div>`;
-    }).join("");
   }
 
   // ── refresh / countdown ─────────────────────────────────────────────────────
@@ -1202,55 +953,13 @@
     startAutoRefresh();
   }
 
-  document.getElementById("cards-grid").addEventListener("click", e => {
-    const btn = e.target.closest("[data-pin]");
-    if (!btn) return;
-    const key = btn.dataset.pin;
-    pinnedKey = pinnedKey === key ? null : key;
-    savePinned();
-    // re-render cards in place without a full API fetch
-    const grid = document.getElementById("cards-grid");
-    grid.querySelectorAll(".event-card").forEach(card => {
-      const isPinned = card.dataset.key === pinnedKey;
-      card.classList.toggle("pinned-card", isPinned);
-      const pinBtn = card.querySelector("[data-pin]");
-      pinBtn.classList.toggle("pinned", isPinned);
-      pinBtn.textContent = isPinned ? "★ pinned" : "☆ pin";
-    });
-    // re-sort the DOM nodes
-    const cards = [...grid.querySelectorAll(".event-card")];
-    cards.sort((a, b) => {
-      const aPin = a.dataset.key === pinnedKey;
-      const bPin = b.dataset.key === pinnedKey;
-      if (aPin !== bPin) return aPin ? -1 : 1;
-      return 0; // preserve existing schedule order for unpinned
-    });
-    cards.forEach(c => grid.appendChild(c));
-  });
-
-  // ── leaderboard toggle ──────────────────────────────────────────────────────
-  const leaderboardPanel  = document.getElementById("leaderboard-panel");
-  const leaderboardToggle = document.getElementById("leaderboard-toggle");
-
-  if (localStorage.getItem("frc_leaderboard_collapsed") === "1") {
-    leaderboardPanel.classList.add("collapsed");
-  }
-
-  leaderboardToggle.addEventListener("click", () => {
-    const collapsed = leaderboardPanel.classList.toggle("collapsed");
-    localStorage.setItem("frc_leaderboard_collapsed", collapsed ? "1" : "0");
-  });
-
   // ── sort mode ───────────────────────────────────────────────────────────────
   const sortModeEl = document.getElementById("sort-mode");
   sortModeEl.value = sortMode;
   sortModeEl.addEventListener("change", () => {
     sortMode = sortModeEl.value;
     localStorage.setItem("frc_sort_mode", sortMode);
-    if (lastEventData) {
-      renderLeaderboard(lastEventData);
-      renderCards(lastEventData);
-    }
+    if (lastEventData) renderLeaderboard(lastEventData);
   });
 
   // initialise dropdown to saved value
