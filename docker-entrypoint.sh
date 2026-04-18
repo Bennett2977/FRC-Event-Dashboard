@@ -1,5 +1,4 @@
 #!/bin/sh
 set -e
-echo "window.TBA_API_KEY = \"${TBA_API_KEY}\";"      > /usr/share/nginx/html/config.js
-echo "window.YOUTUBE_API_KEY = \"${YOUTUBE_API_KEY}\";" >> /usr/share/nginx/html/config.js
+echo "window.TBA_API_KEY = \"${TBA_API_KEY}\";" > /usr/share/nginx/html/config.js
 exec nginx -g 'daemon off;'
