@@ -586,6 +586,8 @@
       style="color:var(--text-dim);text-decoration:none;font-size:0.78rem;">Report an issue</a>
     <span>Powered by <a href="https://www.thebluealliance.com" target="_blank" rel="noopener"
       style="color:var(--accent);text-decoration:none;">The Blue Alliance</a></span>
+    <span>Event data available free from <a href="https://frc-events.firstinspires.org/services/API" target="_blank" rel="noopener"
+      style="color:var(--accent);text-decoration:none;">FIRST</a></span>
   </span>
 </footer>
 
@@ -1104,7 +1106,7 @@
       const schedStr = d.error
         ? `<span style="color:var(--bad)">ERROR</span>`
         : d.playoffComplete
-          ? `<span style="color:var(--great)">Complete</span>`
+          ? `<span style="color:var(--great)">Event Complete! 🎉</span>`
         : d.pct === 100 && d.total > 0 && d.playoffCount === 0
           ? `<span style="color:var(--accent)">Quals Complete</span>`
         : isPreEvent
