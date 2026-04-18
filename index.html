@@ -525,12 +525,6 @@
     <button class="icon-btn" id="back-btn">← Change Events</button>
     <span class="dash-updated" id="dash-updated">—</span>
     <button class="icon-btn" id="refresh-btn">↻ Refresh</button>
-    <select class="icon-btn" id="refresh-rate">
-      <option value="1m">1m</option>
-      <option value="2m">2m</option>
-      <option value="5m">5m</option>
-      <option value="10m">10m</option>
-    </select>
     <span class="dash-countdown" id="dash-countdown"></span>
   </div>
 
@@ -565,18 +559,19 @@
 <footer>
   <span>FRC Event Dashboard v0.1</span>
   <span id="clock"></span>
-  <span style="margin-left:auto">
-    Powered by <a href="https://www.thebluealliance.com" target="_blank" rel="noopener"
-      style="color:var(--accent);text-decoration:none;">The Blue Alliance</a>
+  <button onclick="launchConfetti()" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-family:var(--font);font-size:0.75rem;padding:2px 10px;border-radius:99px;cursor:pointer;" title="Test confetti">🎉 Test</button>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:2.5rem">
+    <a href="https://github.com/Bennett2977/FRC-Event-Dashboard/issues" target="_blank" rel="noopener"
+      style="color:var(--text-dim);text-decoration:none;font-size:0.78rem;">Report an issue</a>
+    <span>Powered by <a href="https://www.thebluealliance.com" target="_blank" rel="noopener"
+      style="color:var(--accent);text-decoration:none;">The Blue Alliance</a></span>
   </span>
 </footer>
 
 <script>
   const TBA_BASE = "/api/tba";
   const LS_KEY        = "frc_selected_event_keys";
-  const REFRESH_OPTIONS_MS = { "1m": 60_000, "2m": 120_000, "5m": 300_000, "10m": 600_000 };
-  const LS_KEY_REFRESH     = "frc_refresh_rate";
-  let   refreshIntervalMs  = REFRESH_OPTIONS_MS[localStorage.getItem(LS_KEY_REFRESH)] ?? 60_000;
+  const refreshIntervalMs = 60_000;
 
   // ── state ──────────────────────────────────────────────────────────────────
   let allEvents    = [];
@@ -584,6 +579,7 @@
   let sortMode     = localStorage.getItem("frc_sort_mode") || "sched";
   let sortDir      = parseInt(localStorage.getItem("frc_sort_dir") || "1", 10);
   let lastEventData = null;
+  const prevCompleteState = new Map(); // eventKey → bool, tracks last known complete state
   let refreshTimer    = null;
   let countdownTimer  = null;
   let countdownSecs   = refreshIntervalMs / 1000;
@@ -876,6 +872,82 @@
     return `https://www.youtube.com/watch?v=${videoId}`;
   }
 
+  // ── confetti ────────────────────────────────────────────────────────────────
+  function launchConfetti(originX, originY) {
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999';
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+
+    const COLORS = ['#6366F1','#10B981','#F59E0B','#F43F5E','#3B82F6','#EC4899','#A3E635'];
+    const COUNT = 300;
+    const cx    = originX ?? canvas.width / 2;
+    const cy    = originY ?? canvas.height;
+
+    const particles = Array.from({ length: COUNT }, () => {
+      const angle = -(0.08 + Math.random() * 0.84) * Math.PI; // upward fan
+      const speed = 2.5 + Math.random() * 5.5;
+      return {
+        x:            cx + (Math.random() - 0.5) * 16,
+        y:            cy,
+        vx:           Math.cos(angle) * speed,
+        vy:           Math.sin(angle) * speed,
+        w:            5 + Math.random() * 9,
+        h:            3 + Math.random() * 5,
+        angle:        Math.random() * Math.PI * 2,
+        spin:         (Math.random() - 0.5) * 0.08,
+        wobble:       Math.random() * Math.PI * 2, // phase offset
+        wobbleSpeed:  0.04 + Math.random() * 0.04, // flutter frequency
+        color:        COLORS[Math.floor(Math.random() * COLORS.length)],
+      };
+    });
+
+    let frame;
+    const DURATION   = 7000;
+    const FADE_START = 5000;
+    const start = performance.now();
+
+    function draw(now) {
+      const elapsed = now - start;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      let alive = false;
+      for (const p of particles) {
+        p.vy          += 0.07;                      // gentle gravity
+        p.vx          *= 0.98;                      // horizontal drag
+        p.vy          *= 0.995;                     // vertical drag (slows terminal velocity)
+        p.wobble      += p.wobbleSpeed;
+        p.vx          += Math.sin(p.wobble) * 0.12; // paper flutter side-to-side
+        p.x           += p.vx;
+        p.y           += p.vy;
+        p.angle       += p.spin;
+        const opacity = elapsed < FADE_START
+          ? 1
+          : Math.max(0, 1 - (elapsed - FADE_START) / (DURATION - FADE_START));
+
+        if (p.y < canvas.height + 20) alive = true;
+
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+
+      if (alive && elapsed < DURATION) {
+        frame = requestAnimationFrame(draw);
+      } else {
+        canvas.remove();
+      }
+    }
+
+    frame = requestAnimationFrame(draw);
+  }
+
   // ── dashboard load ──────────────────────────────────────────────────────────
   async function loadDashboard() {
     const tracked = allEvents.filter(ev => selectedKeys.has(ev.key));
@@ -908,6 +980,21 @@
 
     lastEventData = eventData;
     renderLeaderboard(eventData);
+
+    // Fire confetti only when an event transitions to complete (not on initial load)
+    for (const d of eventData) {
+      const prev = prevCompleteState.get(d.ev.key);
+      if (d.playoffComplete && prev === false) {
+        const cell = document.querySelector(`[data-sched-key="${d.ev.key}"]`);
+        if (cell) {
+          const r = cell.getBoundingClientRect();
+          launchConfetti(r.left + r.width / 2, r.top + r.height / 2);
+        } else {
+          launchConfetti();
+        }
+      }
+      prevCompleteState.set(d.ev.key, d.playoffComplete);
+    }
 
     const ts = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
     document.getElementById("dash-updated").textContent = `updated ${ts}`;
@@ -996,7 +1083,7 @@
           <td class="dim col-location">${locationStr(d.ev)}</td>
           <td class="col-quals" data-label="Quals">${qualsStr}</td>
           <td class="col-playoffs" data-label="Playoffs">${playoffsStr}</td>
-          <td class="col-sched" data-label="Sched">${schedStr}</td>
+          <td class="col-sched" data-label="Sched" data-sched-key="${d.ev.key}">${schedStr}</td>
           <td class="dim col-cycle" data-label="Cycle" style="font-size:0.72rem">${cycleStr}</td>
           <td class="col-highscore" data-label="High Score" style="white-space:nowrap">${highStr}</td>
           <td class="col-links"><div style="display:flex;gap:0.3rem;align-items:center">${webcasts} ${agendaBtn}</div></td>
@@ -1008,10 +1095,11 @@
   // ── event cards ─────────────────────────────────────────────────────────────
   function sortEventData(eventData) {
     // 0 = active, 1 = end of day, 2 = quals complete awaiting playoffs,
-    // 3 = upcoming (schedule exists, first match not today), 4 = no schedule
+    // 3 = pre-event, 4 = upcoming, 5 = playoff complete, 6 = no schedule
     const todayUtc = new Date().toISOString().slice(0, 10);
     const group = d => {
-      if (d.total === 0) return 5;
+      if (d.total === 0) return 6;
+      if (d.playoffComplete) return 5;
       if (d.pct === 100 && d.playoffCount === 0) return 2;
       if (d.breakStatus === "END_OF_DAY") return 1;
       if (d.played === 0) {
@@ -1124,24 +1212,6 @@
   });
   renderSortIndicators();
 
-  // initialise dropdown to saved value
-  const refreshRateEl = document.getElementById("refresh-rate");
-  const savedRate = localStorage.getItem(LS_KEY_REFRESH);
-  if (savedRate && refreshRateEl.querySelector(`option[value="${savedRate}"]`)) {
-    refreshRateEl.value = savedRate;
-  } else {
-    refreshRateEl.value = "1m";
-  }
-
-  refreshRateEl.addEventListener("change", () => {
-    const label = refreshRateEl.value;
-    localStorage.setItem(LS_KEY_REFRESH, label);
-    refreshIntervalMs = REFRESH_OPTIONS_MS[label];
-    clearInterval(refreshTimer);
-    clearInterval(countdownTimer);
-    startAutoRefresh();
-    resetCountdown();
-  });
 
   document.getElementById("refresh-btn").addEventListener("click", () => {
     clearInterval(refreshTimer);
