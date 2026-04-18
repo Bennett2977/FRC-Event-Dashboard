@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FRC Event Dashboard</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐕</text></svg>">
-  <script src="/config.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -573,8 +572,7 @@
 </footer>
 
 <script>
-  const API_KEY     = window.TBA_API_KEY     || "";
-  const TBA_BASE    = "https://www.thebluealliance.com/api/v3";
+  const TBA_BASE = "/api/tba";
   const LS_KEY        = "frc_selected_event_keys";
   const REFRESH_OPTIONS_MS = { "1m": 60_000, "2m": 120_000, "5m": 300_000, "10m": 600_000 };
   const LS_KEY_REFRESH     = "frc_refresh_rate";
@@ -590,8 +588,6 @@
   let countdownTimer  = null;
   let countdownSecs   = refreshIntervalMs / 1000;
 
-  // ETag cache for TBA API responses
-  const tbaCache = {};
 
   // ── helpers ────────────────────────────────────────────────────────────────
   function saveSelected() {
@@ -599,15 +595,9 @@
   }
 
   async function tbaFetch(path) {
-    const headers = { "X-TBA-Auth-Key": API_KEY };
-    if (tbaCache[path]?.etag) headers["If-None-Match"] = tbaCache[path].etag;
-    const res = await fetch(TBA_BASE + path, { headers });
-    if (res.status === 304) return tbaCache[path].data;
+    const res = await fetch(TBA_BASE + path);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const etag = res.headers.get("ETag");
-    if (etag) tbaCache[path] = { etag, data };
-    return data;
+    return res.json();
   }
 
   function weekLabel(w) {
