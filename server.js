@@ -57,6 +57,8 @@ function fetchFromTBA(path) {
 }
 
 const server = http.createServer(async (req, res) => {
+  console.log(`[req] ${req.method} ${req.url}`);
+
   if (!req.url.startsWith('/api/tba/')) {
     res.writeHead(404);
     res.end();
@@ -73,6 +75,7 @@ const server = http.createServer(async (req, res) => {
       'Content-Length': Buffer.byteLength(body),
     });
     res.end(body);
+    console.log(`[ok]  ${tbaPath} (cache size: ${cache.size})`);
   } catch (err) {
     console.error(`[error] ${tbaPath}: ${err.message}`);
     const body = JSON.stringify({ error: err.message });
@@ -81,4 +84,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`TBA cache proxy listening on :${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`TBA cache proxy listening on 0.0.0.0:${PORT}`));
