@@ -324,6 +324,12 @@
       background: var(--bg);
     }
 
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { color: var(--text); }
+    th.sort-active { color: var(--accent); }
+    th.sort-active::after { content: ' ↓'; font-style: normal; }
+    th.sort-active.sort-asc::after { content: ' ↑'; }
+
     td {
       padding: 0.55rem 0.875rem;
       border-bottom: 1px solid var(--border);
@@ -440,28 +446,19 @@
   </div>
 
   <div class="panel" id="leaderboard-panel">
-    <div class="panel-header panel-header-row">
-      <span>Leaderboard — Schedule Status</span>
-      <div style="display:flex;gap:0.5rem;align-items:center">
-        <select class="icon-btn" id="sort-mode" style="font-size:0.7rem;padding:1px 1.2rem 1px 0.4rem">
-          <option value="on-time">Sort: On Time</option>
-          <option value="completion">Sort: Completion %</option>
-          <option value="high-score">Sort: High Score</option>
-        </select>
-      </div>
-    </div>
+    <div class="panel-header">Leaderboard — Schedule Status</div>
     <div class="panel-body">
       <table>
         <thead>
           <tr>
             <th style="width:2rem">#</th>
-            <th>Event</th>
+            <th class="sortable" data-sort="event">Event</th>
             <th>Location</th>
-            <th style="width:7rem">Quals</th>
+            <th class="sortable" data-sort="quals" style="width:7rem">Quals</th>
             <th style="width:7rem">Playoffs</th>
-            <th style="width:10rem">Sched</th>
-            <th style="width:10rem">Cycle Act/Sched</th>
-            <th style="width:5rem">High Score</th>
+            <th class="sortable" data-sort="sched" style="width:10rem">Sched</th>
+            <th class="sortable" data-sort="cycle" style="width:10rem">Cycle Act/Sched</th>
+            <th class="sortable" data-sort="high-score" style="width:5rem">High Score</th>
             <th>Links</th>
           </tr>
         </thead>
@@ -496,7 +493,8 @@
   // ── state ──────────────────────────────────────────────────────────────────
   let allEvents    = [];
   let selectedKeys = new Set(JSON.parse(localStorage.getItem(LS_KEY) || "[]"));
-  let sortMode     = localStorage.getItem("frc_sort_mode") || "on-time";
+  let sortMode     = localStorage.getItem("frc_sort_mode") || "sched";
+  let sortDir      = parseInt(localStorage.getItem("frc_sort_dir") || "1", 10);
   let lastEventData = null;
   let refreshTimer    = null;
   let countdownTimer  = null;
@@ -669,8 +667,10 @@
     if (!next || next.actual_time != null) return null;
 
     const gapMins = (next.time - lastPlayed.time) / 60;
+    const minsUntilNext = (next.time - Date.now() / 1000) / 60;
 
-    // Different UTC day → end of day for today
+    // Next match is >6 hours away, or on a different UTC day → end of day
+    if (minsUntilNext > 360) return "END_OF_DAY";
     if (Math.floor(next.time / 86400) > Math.floor(lastPlayed.time / 86400)) return "END_OF_DAY";
 
     // Gap ≥ 45 minutes within the same day → lunch
@@ -686,7 +686,8 @@
 
     // ── qual fields ──
     let playedCount = 0, pct = 0, currentNum = 0, delta = null, breakStatus = null,
-        avgCycleActual = null, avgCycleScheduled = null, highScoreMatch = null;
+        avgCycleActual = null, avgCycleScheduled = null, highScoreMatch = null,
+        firstMatchTime = null;
 
     if (total > 0) {
       const played = quals.filter(m => m.actual_time !== null);
@@ -704,6 +705,7 @@
 
       // Scheduled cycle time — exclude gaps > 20 min (planned breaks)
       const scheduledSorted = quals.filter(m => m.time != null).sort((a, b) => a.time - b.time);
+      firstMatchTime = scheduledSorted.length > 0 ? scheduledSorted[0].time : null;
       if (scheduledSorted.length >= 2) {
         const gaps = [];
         for (let i = 1; i < scheduledSorted.length; i++) {
@@ -764,7 +766,7 @@
     }
 
     return { ev, total, played: playedCount, pct, currentNum, delta, breakStatus,
-             avgCycleActual, avgCycleScheduled, highScoreMatch,
+             avgCycleActual, avgCycleScheduled, highScoreMatch, firstMatchTime,
              playoffCount, playoffDelta, playoffRound, playoffComplete };
   }
 
@@ -837,6 +839,7 @@
   // ── leaderboard ─────────────────────────────────────────────────────────────
   function renderLeaderboard(eventData) {
     const sorted = sortEventData(eventData);
+    renderSortIndicators();
 
     const cssColor = sc =>
       ({ great: "var(--great)", good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", dim: "var(--text-dim)" })[sc];
@@ -862,12 +865,20 @@
 
       // Single unified schedule column — uses playoff delta once playoffs begin
       const activeDelta = d.playoffCount > 0 ? d.playoffDelta : d.delta;
+      const todayUtc = new Date().toISOString().slice(0, 10);
+      const isUpcoming = d.played === 0 && d.firstMatchTime !== null &&
+        new Date(d.firstMatchTime * 1000).toISOString().slice(0, 10) > todayUtc;
+      const isPreEvent = d.played === 0 && d.total > 0 && !isUpcoming;
       const schedStr = d.error
         ? `<span style="color:var(--bad)">ERROR</span>`
         : d.playoffComplete
           ? `<span style="color:var(--great)">Complete</span>`
         : d.pct === 100 && d.total > 0 && d.playoffCount === 0
           ? `<span style="color:var(--accent)">Quals Complete</span>`
+        : isPreEvent
+          ? `<span style="color:var(--text-dim)">Pre Event</span>`
+        : isUpcoming
+          ? `<span style="color:var(--text-dim)">Upcoming</span>`
         : d.playoffCount === 0 && d.breakStatus === "END_OF_DAY"
             ? `<span style="color:var(--accent)">End of Day</span>`
           : d.playoffCount === 0 && d.breakStatus === "LUNCH"
@@ -916,28 +927,64 @@
 
   // ── event cards ─────────────────────────────────────────────────────────────
   function sortEventData(eventData) {
-    // 0 = active, 1 = end of day, 2 = quals complete awaiting playoffs, 3 = no schedule
+    // 0 = active, 1 = end of day, 2 = quals complete awaiting playoffs,
+    // 3 = upcoming (schedule exists, first match not today), 4 = no schedule
+    const todayUtc = new Date().toISOString().slice(0, 10);
     const group = d => {
-      if (d.total === 0) return 3;
+      if (d.total === 0) return 5;
       if (d.pct === 100 && d.playoffCount === 0) return 2;
       if (d.breakStatus === "END_OF_DAY") return 1;
+      if (d.played === 0) {
+        if (d.firstMatchTime !== null) {
+          const matchDay = new Date(d.firstMatchTime * 1000).toISOString().slice(0, 10);
+          if (matchDay > todayUtc) return 4; // upcoming: first match is a future day
+        }
+        return 3; // pre-event: schedule exists, 0 played, today's event
+      }
       return 0;
     };
+
+    const dir = sortDir; // 1 = default desc, -1 = flipped
 
     return [...eventData].sort((a, b) => {
       const ag = group(a), bg = group(b);
       if (ag !== bg) return ag - bg;
-      if (sortMode === "completion") return b.pct - a.pct;
+
+      if (sortMode === "event") {
+        return dir * a.ev.name.localeCompare(b.ev.name);
+      }
+      if (sortMode === "quals") {
+        return dir * (b.pct - a.pct);
+      }
+      if (sortMode === "cycle") {
+        const av = a.avgCycleActual ?? Infinity;
+        const bv = b.avgCycleActual ?? Infinity;
+        return dir * (av - bv);
+      }
       if (sortMode === "high-score") {
         const aTop = a.highScoreMatch ? Math.max(a.highScoreMatch.red ?? 0, a.highScoreMatch.blue ?? 0) : -1;
         const bTop = b.highScoreMatch ? Math.max(b.highScoreMatch.red ?? 0, b.highScoreMatch.blue ?? 0) : -1;
-        return bTop - aTop;
+        return dir * (bTop - aTop);
       }
-      // on-time sort: most ahead first, null last
-      if (a.delta === null && b.delta === null) return 0;
-      if (a.delta === null) return 1;
-      if (b.delta === null) return -1;
-      return b.delta - a.delta;
+      // sched (default): most ahead first, null last
+      const ad = a.playoffCount > 0 ? a.playoffDelta : a.delta;
+      const bd = b.playoffCount > 0 ? b.playoffDelta : b.delta;
+      if (ad === null && bd === null) return 0;
+      if (ad === null) return 1;
+      if (bd === null) return -1;
+      return dir * (bd - ad);
+    });
+  }
+
+  function renderSortIndicators() {
+    document.querySelectorAll("th.sortable").forEach(th => {
+      th.classList.remove("sort-active", "sort-asc");
+      if (th.dataset.sort === sortMode) {
+        th.classList.add("sort-active");
+        // sortDir=1 means default direction (desc for most), show ↓
+        // sortDir=-1 means flipped, show ↑
+        if (sortDir === -1) th.classList.add("sort-asc");
+      }
     });
   }
 
@@ -980,13 +1027,22 @@
   }
 
   // ── sort mode ───────────────────────────────────────────────────────────────
-  const sortModeEl = document.getElementById("sort-mode");
-  sortModeEl.value = sortMode;
-  sortModeEl.addEventListener("change", () => {
-    sortMode = sortModeEl.value;
-    localStorage.setItem("frc_sort_mode", sortMode);
-    if (lastEventData) renderLeaderboard(lastEventData);
+  document.querySelectorAll("th.sortable").forEach(th => {
+    th.addEventListener("click", () => {
+      const col = th.dataset.sort;
+      if (sortMode === col) {
+        sortDir = sortDir === 1 ? -1 : 1;
+      } else {
+        sortMode = col;
+        sortDir = 1;
+      }
+      localStorage.setItem("frc_sort_mode", sortMode);
+      localStorage.setItem("frc_sort_dir", sortDir);
+      renderSortIndicators();
+      if (lastEventData) renderLeaderboard(lastEventData);
+    });
   });
+  renderSortIndicators();
 
   // initialise dropdown to saved value
   const refreshRateEl = document.getElementById("refresh-rate");
