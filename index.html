@@ -352,6 +352,8 @@
     .tba-action-btn {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      min-width: 5.5rem;
       height: 24px;
       padding: 0 9px;
       border-radius: 5px;
@@ -375,6 +377,26 @@
     }
 
     .tba-action-btn.stream-btn:hover { background: color-mix(in srgb, var(--bad) 18%, transparent); }
+
+    .tba-action-btn.live-btn {
+      color: var(--great);
+      border-color: color-mix(in srgb, var(--great) 40%, transparent);
+      background: color-mix(in srgb, var(--great) 10%, transparent);
+      gap: 5px;
+    }
+    .tba-action-btn.live-btn:hover { background: color-mix(in srgb, var(--great) 20%, transparent); }
+
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--great);
+      flex-shrink: 0;
+      animation: live-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes live-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.75); }
+    }
 
     /* ── Footer ── */
     footer {
@@ -523,8 +545,8 @@
 
   <div class="dash-nav">
     <button class="icon-btn" id="back-btn">← Change Events</button>
-    <span class="dash-updated" id="dash-updated">—</span>
     <button class="icon-btn" id="refresh-btn">↻ Refresh</button>
+    <span class="dash-updated" id="dash-updated">—</span>
     <span class="dash-countdown" id="dash-countdown"></span>
   </div>
 
@@ -559,8 +581,7 @@
 <footer>
   <span>FRC Event Dashboard v0.1</span>
   <span id="clock"></span>
-  <button onclick="launchConfetti()" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-family:var(--font);font-size:0.75rem;padding:2px 10px;border-radius:99px;cursor:pointer;" title="Test confetti">🎉 Test</button>
-  <span style="margin-left:auto;display:flex;align-items:center;gap:2.5rem">
+<span style="margin-left:auto;display:flex;align-items:center;gap:2.5rem">
     <a href="https://github.com/Bennett2977/FRC-Event-Dashboard/issues" target="_blank" rel="noopener"
       style="color:var(--text-dim);text-decoration:none;font-size:0.78rem;">Report an issue</a>
     <span>Powered by <a href="https://www.thebluealliance.com" target="_blank" rel="noopener"
@@ -863,13 +884,22 @@
   }
 
 // ── stream detection ────────────────────────────────────────────────────────
-  function getStreamUrl(eventDetail) {
-    const webcasts = eventDetail.webcasts || [];
-    const yt = webcasts.find(w => w.type === "youtube");
-    if (!yt) return null;
-    const videoId = yt.file || yt.channel;
-    if (!videoId) return null;
-    return `https://www.youtube.com/watch?v=${videoId}`;
+  function getVideoIds(webcasts) {
+    return (webcasts || []).flatMap(url => {
+      try { const v = new URL(url).searchParams.get('v'); return v ? [v] : []; }
+      catch { return []; }
+    });
+  }
+
+  // Select today's stream by day-index relative to event start date
+  function getTodayWebcast(webcasts, dateStart) {
+    if (!webcasts || webcasts.length === 0) return null;
+    if (webcasts.length === 1 || !dateStart) return webcasts[webcasts.length - 1];
+    const start = new Date(dateStart);
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+    const todayDay = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
+    const idx = Math.round((todayDay - startDay) / 86400000);
+    return webcasts[Math.max(0, Math.min(idx, webcasts.length - 1))];
   }
 
   // ── confetti ────────────────────────────────────────────────────────────────
@@ -963,18 +993,53 @@
           tbaFetch(`/event/${ev.key}`)
         ]);
         const matchData = processMatches(ev, matches);
-        const streamUrl = getStreamUrl(eventDetail);
         const year = ev.key.slice(0, 4);
         const code = ev.key.slice(4).toUpperCase();
+
+        // Fetch webcasts from FRC Events API; fall back to TBA if none returned
+        let webcasts = [], dateStart = null;
+        try {
+          const frcData = await fetch(`/api/frc/${year}/events?eventCode=${code}`).then(r => r.json());
+          const frcEvent = frcData?.Events?.[0];
+          webcasts  = frcEvent?.webcasts  || [];
+          dateStart = frcEvent?.dateStart || null;
+        } catch {}
+
+        if (webcasts.length === 0) {
+          const tbaYt = (eventDetail.webcasts || []).find(w => w.type === 'youtube');
+          if (tbaYt) {
+            const vidId = tbaYt.file || tbaYt.channel;
+            if (vidId) webcasts = [`https://www.youtube.com/watch?v=${vidId}`];
+          }
+        }
+
+        const videoIds = getVideoIds(webcasts);
+
+        // Check all video IDs in parallel; prefer live stream, otherwise use today's day-index stream
+        let streamUrl = getTodayWebcast(webcasts, dateStart);
+        let streamLive = false;
+        if (videoIds.length > 0) {
+          const liveResults = await Promise.all(
+            videoIds.map(vid =>
+              fetch(`/api/yt-live?vid=${encodeURIComponent(vid)}`)
+                .then(r => r.ok ? r.json() : { live: false })
+                .then(j => ({ url: `https://www.youtube.com/watch?v=${vid}`, live: j.live }))
+                .catch(() => ({ url: `https://www.youtube.com/watch?v=${vid}`, live: false }))
+            )
+          );
+          const liveStream = liveResults.find(r => r.live);
+          if (liveStream) { streamUrl = liveStream.url; streamLive = true; }
+        }
+
         const agendaUrl = `https://info.firstinspires.org/hubfs/web/event/frc/${year}/${year}_${code}_Agenda.pdf`;
-        return { ...matchData, streamUrl, agendaUrl };
+        return { ...matchData, streamUrl, streamLive, agendaUrl };
       })
     );
 
     const eventData = results.map((r, i) => {
       if (r.status === "fulfilled") return r.value;
       return { ev: tracked[i], total: 0, played: 0, pct: 0, currentNum: 0, delta: null,
-               streamUrl: null, breakStatus: null, playoffCount: 0, playoffDelta: null,
+               streamUrl: null, streamLive: false, breakStatus: null, playoffCount: 0, playoffDelta: null,
                playoffRound: null, error: r.reason.message };
     });
 
@@ -1069,7 +1134,9 @@
       }
 
       const webcasts = d.streamUrl
-        ? `<a class="tba-action-btn stream-btn" href="${d.streamUrl}" target="_blank" rel="noopener">▶ Webcast</a>`
+        ? d.streamLive
+          ? `<a class="tba-action-btn live-btn" href="${d.streamUrl}" target="_blank" rel="noopener"><span class="live-dot"></span>LIVE</a>`
+          : `<a class="tba-action-btn stream-btn" href="${d.streamUrl}" target="_blank" rel="noopener" style="opacity:0.5">▶ Webcast</a>`
         : `<span class="tba-action-btn stream-btn" style="opacity:0.3;cursor:default">▶ Webcast</span>`;
 
       const agendaBtn = d.agendaUrl
