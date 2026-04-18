@@ -400,6 +400,84 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+    .col-event-loc { display: none; font-size: 0.75rem; margin-left: 0.4rem; }
+
+    /* ── Responsive: tablet ── */
+    @media (max-width: 960px) {
+      th.col-location, td.col-location,
+      th.col-cycle,    td.col-cycle { display: none; }
+    }
+
+    /* ── Responsive: phone ── */
+    @media (max-width: 640px) {
+      #view-dashboard { padding: 0.75rem; gap: 0.75rem; }
+
+      #leaderboard-panel .panel-body { overflow-x: visible; }
+
+      table  { display: block; }
+      thead  { display: none; }
+      tbody  { display: flex; flex-direction: column; gap: 0.625rem; padding: 0.625rem; }
+
+      tbody tr {
+        display: block;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow);
+      }
+
+      tbody td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.45rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.875rem;
+        white-space: normal;
+      }
+
+      tbody tr td:last-child { border-bottom: none; }
+
+      tbody td[data-label]::before {
+        content: attr(data-label);
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-dim);
+        flex-shrink: 0;
+        margin-right: 0.5rem;
+      }
+
+      tbody td.col-rank     { display: none; }
+      tbody td.col-location { display: none; }
+      tbody td.col-cycle    { display: none; }
+
+      tbody td.col-event {
+        font-weight: 600;
+        font-size: 0.9rem;
+        background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+        border-bottom: 2px solid var(--border);
+        padding: 0.6rem 0.75rem;
+        gap: 0.3rem;
+        flex-wrap: wrap;
+        align-items: baseline;
+      }
+      tbody td.col-event::before { display: none; }
+      tbody td.col-event .col-event-loc { display: inline; }
+
+      tbody td.col-links {
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+      }
+      tbody td.col-links::before { display: none; }
+      tbody td.col-links > div { flex-wrap: wrap; gap: 0.4rem; }
+
+      .dash-nav { gap: 0.4rem; }
+      .dash-countdown { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -451,15 +529,15 @@
       <table>
         <thead>
           <tr>
-            <th style="width:2rem">#</th>
-            <th class="sortable" data-sort="event">Event</th>
-            <th>Location</th>
-            <th class="sortable" data-sort="quals" style="width:7rem">Quals</th>
-            <th style="width:7rem">Playoffs</th>
-            <th class="sortable" data-sort="sched" style="width:10rem">Sched</th>
-            <th class="sortable" data-sort="cycle" style="width:10rem">Cycle Act/Sched</th>
-            <th class="sortable" data-sort="high-score" style="width:5rem">High Score</th>
-            <th>Links</th>
+            <th class="col-rank" style="width:2rem">#</th>
+            <th class="col-event sortable" data-sort="event">Event</th>
+            <th class="col-location">Location</th>
+            <th class="col-quals sortable" data-sort="quals" style="width:7rem">Quals</th>
+            <th class="col-playoffs" style="width:7rem">Playoffs</th>
+            <th class="col-sched sortable" data-sort="sched" style="width:10rem">Sched</th>
+            <th class="col-cycle sortable" data-sort="cycle" style="width:10rem">Cycle Act/Sched</th>
+            <th class="col-highscore sortable" data-sort="high-score" style="width:5rem">High Score</th>
+            <th class="col-links">Links</th>
           </tr>
         </thead>
         <tbody id="leaderboard-tbody">
@@ -911,15 +989,15 @@
 
       return `
         <tr>
-          <td class="dim">${i + 1}</td>
-          <td><a href="${tbaBase}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">${d.ev.name}</a></td>
-          <td class="dim">${locationStr(d.ev)}</td>
-          <td>${qualsStr}</td>
-          <td>${playoffsStr}</td>
-          <td>${schedStr}</td>
-          <td class="dim" style="font-size:0.72rem">${cycleStr}</td>
-          <td style="white-space:nowrap">${highStr}</td>
-          <td style="white-space:nowrap"><div style="display:flex;gap:0.3rem;align-items:center">${webcasts} ${agendaBtn}</div></td>
+          <td class="dim col-rank">${i + 1}</td>
+          <td class="col-event"><a href="${tbaBase}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">${d.ev.name}</a><span class="col-event-loc dim">${locationStr(d.ev)}</span></td>
+          <td class="dim col-location">${locationStr(d.ev)}</td>
+          <td class="col-quals" data-label="Quals">${qualsStr}</td>
+          <td class="col-playoffs" data-label="Playoffs">${playoffsStr}</td>
+          <td class="col-sched" data-label="Sched">${schedStr}</td>
+          <td class="dim col-cycle" data-label="Cycle" style="font-size:0.72rem">${cycleStr}</td>
+          <td class="col-highscore" data-label="High Score" style="white-space:nowrap">${highStr}</td>
+          <td class="col-links"><div style="display:flex;gap:0.3rem;align-items:center">${webcasts} ${agendaBtn}</div></td>
         </tr>`;
     }).join("") ||
       `<tr><td colspan="9" class="dim" style="text-align:center;padding:1rem 0;">// no data</td></tr>`;
