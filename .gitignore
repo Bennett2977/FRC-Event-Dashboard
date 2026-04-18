@@ -1,2 +1,7 @@
 .env
 docker-compose.prod.yml
+.gitignore
+docker-compose.yml
+docker-entrypoint.sh
+Dockerfile
+.claude
