@@ -407,6 +407,19 @@
     @media (max-width: 960px) {
       th.col-location, td.col-location,
       th.col-cycle,    td.col-cycle { display: none; }
+
+      header { position: static; }
+
+      /* Let the page scroll rather than the dashboard view internally */
+      #view-dashboard { overflow-y: unset; flex: none; }
+
+      #leaderboard-panel .panel-body { overflow-x: unset; }
+
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
     }
 
     /* ── Responsive: phone ── */
@@ -514,7 +527,6 @@
     <span class="dash-updated" id="dash-updated">—</span>
     <button class="icon-btn" id="refresh-btn">↻ Refresh</button>
     <select class="icon-btn" id="refresh-rate">
-      <option value="30s">30s</option>
       <option value="1m">1m</option>
       <option value="2m">2m</option>
       <option value="5m">5m</option>
@@ -564,7 +576,7 @@
   const API_KEY     = window.TBA_API_KEY     || "";
   const TBA_BASE    = "https://www.thebluealliance.com/api/v3";
   const LS_KEY        = "frc_selected_event_keys";
-  const REFRESH_OPTIONS_MS = { "30s": 30_000, "1m": 60_000, "2m": 120_000, "5m": 300_000, "10m": 600_000 };
+  const REFRESH_OPTIONS_MS = { "1m": 60_000, "2m": 120_000, "5m": 300_000, "10m": 600_000 };
   const LS_KEY_REFRESH     = "frc_refresh_rate";
   let   refreshIntervalMs  = REFRESH_OPTIONS_MS[localStorage.getItem(LS_KEY_REFRESH)] ?? 60_000;
 
