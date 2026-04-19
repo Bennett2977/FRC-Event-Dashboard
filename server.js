@@ -30,6 +30,8 @@ const YT_TTL   = 2 * 60 * 1000; // re-check every 2 minutes
 
 // Outbound API call timestamps (trimmed to 8 days in eviction loop)
 const apiLog = { tba: [], frc: [], yt: [] };
+// Incoming request timestamps per endpoint (same retention)
+const reqLog = { tba: [], frc: [], yt: [] };
 
 setInterval(() => {
   const tbaCutoff = Date.now() - IDLE_MS;
@@ -51,6 +53,7 @@ setInterval(() => {
   }
   for (const key of Object.keys(apiLog)) {
     apiLog[key] = apiLog[key].filter(t => t > cutoff8d);
+    reqLog[key] = reqLog[key].filter(t => t > cutoff8d);
   }
 }, 60_000).unref();
 
@@ -168,6 +171,7 @@ const server = http.createServer(async (req, res) => {
   else userActivity.set(uid, { firstSeen: now, lastSeen: now });
 
   if (req.url.startsWith('/api/yt-live')) {
+    reqLog.yt.push(Date.now());
     const qs  = req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '';
     const vid = new URLSearchParams(qs).get('vid');
     if (!vid || !YT_KEY) {
@@ -184,6 +188,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.url.startsWith('/api/frc/')) {
+    reqLog.frc.push(Date.now());
     const frcPath = req.url.slice('/api/frc'.length); // e.g. /2026/events?eventCode=WASPO
     try {
       const data = await fetchFromFRC(frcPath);
@@ -206,6 +211,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  reqLog.tba.push(Date.now());
   const tbaPath = req.url.slice('/api/tba'.length);
   try {
     const data = await fetchFromTBA(tbaPath);
@@ -239,9 +245,15 @@ const diagServer = http.createServer((req, res) => {
   const week    = users.filter(u => now - u.lastSeen < 7 * 24 * 60 * 60 * 1000).length;
 
   const day24 = now - 24 * 60 * 60 * 1000;
-  const tbaCalls = apiLog.tba.filter(t => t > day24).length;
-  const frcCalls = apiLog.frc.filter(t => t > day24).length;
-  const ytCalls  = apiLog.yt.filter(t => t > day24).length;
+  const tbaCalls   = apiLog.tba.filter(t => t > day24).length;
+  const frcCalls   = apiLog.frc.filter(t => t > day24).length;
+  const ytCalls    = apiLog.yt.filter(t => t > day24).length;
+  const tbaReqs    = reqLog.tba.filter(t => t > day24).length;
+  const frcReqs    = reqLog.frc.filter(t => t > day24).length;
+  const ytReqs     = reqLog.yt.filter(t => t > day24).length;
+  const avoided    = (tbaReqs - tbaCalls) + (frcReqs - frcCalls) + (ytReqs - ytCalls);
+  const totalReqs  = tbaReqs + frcReqs + ytReqs;
+  const avoidedPct = totalReqs > 0 ? ((avoided / totalReqs) * 100).toFixed(1) : '—';
 
   // Most-recently-accessed TBA paths
   const topTba = [...cache.entries()]
@@ -327,6 +339,13 @@ const diagServer = http.createServer((req, res) => {
   <div class="card"><div class="val">${tbaCalls}</div><div class="lbl">The Blue Alliance</div></div>
   <div class="card"><div class="val">${frcCalls}</div><div class="lbl">FRC Events API</div></div>
   <div class="card"><div class="val">${ytCalls}</div><div class="lbl">YouTube Data API</div></div>
+</div>
+
+<h2>Cache Efficiency (past 24 h)</h2>
+<div class="grid">
+  <div class="card"><div class="val">${avoided}</div><div class="lbl">Calls Avoided by Cache</div></div>
+  <div class="card"><div class="val">${avoidedPct}%</div><div class="lbl">Cache Hit Rate</div></div>
+  <div class="card"><div class="val">${totalReqs}</div><div class="lbl">Total Incoming Requests</div></div>
 </div>
 
 <h2>Process</h2>
