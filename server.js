@@ -44,10 +44,10 @@ setInterval(() => {
   for (const [key, entry] of ytCache) {
     if (entry.ts < ytCutoff) ytCache.delete(key);
   }
-  // drop user records and API log entries older than 25 hours
-  const cutoff25h = Date.now() - 25 * 60 * 60 * 1000;
-  for (const [ip, u] of userActivity) {
-    if (u.lastSeen < cutoff25h) userActivity.delete(ip);
+  // drop user records older than 8 days (beyond all reporting windows)
+  const cutoff8d = Date.now() - 8 * 24 * 60 * 60 * 1000;
+  for (const [uid, u] of userActivity) {
+    if (u.lastSeen < cutoff8d) userActivity.delete(uid);
   }
   for (const key of Object.keys(apiLog)) {
     apiLog[key] = apiLog[key].filter(t => t > cutoff25h);
@@ -161,11 +161,11 @@ function checkYouTubeVideoLive(videoId) {
 const server = http.createServer(async (req, res) => {
   console.log(`[req] ${req.method} ${req.url}`);
 
-  const ip  = req.headers['x-real-ip'] || req.socket.remoteAddress || 'unknown';
+  const uid = req.headers['x-session-id'] || req.headers['x-real-ip'] || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
-  const existing = userActivity.get(ip);
+  const existing = userActivity.get(uid);
   if (existing) existing.lastSeen = now;
-  else userActivity.set(ip, { firstSeen: now, lastSeen: now });
+  else userActivity.set(uid, { firstSeen: now, lastSeen: now });
 
   if (req.url.startsWith('/api/yt-live')) {
     const qs  = req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '';
@@ -233,9 +233,10 @@ const diagServer = http.createServer((req, res) => {
 
   const now   = Date.now();
   const users = [...userActivity.values()];
-  const active  = users.filter(u => now - u.lastSeen <      5 * 60 * 1000).length;
-  const hour    = users.filter(u => now - u.lastSeen <     60 * 60 * 1000).length;
-  const day     = users.filter(u => now - u.lastSeen < 24 * 60 * 60 * 1000).length;
+  const active  = users.filter(u => now - u.lastSeen <          5 * 60 * 1000).length;
+  const hour    = users.filter(u => now - u.lastSeen <         60 * 60 * 1000).length;
+  const day     = users.filter(u => now - u.lastSeen <     24 * 60 * 60 * 1000).length;
+  const week    = users.filter(u => now - u.lastSeen < 7 * 24 * 60 * 60 * 1000).length;
 
   const day24 = now - 24 * 60 * 60 * 1000;
   const tbaCalls = apiLog.tba.filter(t => t > day24).length;
@@ -311,6 +312,7 @@ const diagServer = http.createServer((req, res) => {
   <div class="card"><div class="val">${active}</div><div class="lbl">Active (last 5 min)</div></div>
   <div class="card"><div class="val">${hour}</div><div class="lbl">Past Hour</div></div>
   <div class="card"><div class="val">${day}</div><div class="lbl">Past 24 Hours</div></div>
+  <div class="card"><div class="val">${week}</div><div class="lbl">Past 7 Days</div></div>
 </div>
 
 <h2>Cache</h2>

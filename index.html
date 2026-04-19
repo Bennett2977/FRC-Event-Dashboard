@@ -596,6 +596,16 @@
   const LS_KEY        = "frc_selected_event_keys";
   const refreshIntervalMs = 60_000;
 
+  // Stable per-browser session ID so the cache server can count distinct users
+  const SESSION_ID = (() => {
+    let id = localStorage.getItem('frc_session_id');
+    if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('frc_session_id', id); }
+    return id;
+  })();
+  function apiFetch(url, opts = {}) {
+    return fetch(url, { ...opts, headers: { ...(opts.headers || {}), 'X-Session-ID': SESSION_ID } });
+  }
+
   // ── state ──────────────────────────────────────────────────────────────────
   let allEvents    = [];
   let selectedKeys = new Set(JSON.parse(localStorage.getItem(LS_KEY) || "[]"));
@@ -614,7 +624,7 @@
   }
 
   async function tbaFetch(path) {
-    const res = await fetch(TBA_BASE + path);
+    const res = await apiFetch(TBA_BASE + path);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
@@ -1011,7 +1021,7 @@
         // Fetch webcasts and event code from FRC Events API; fall back to TBA if none returned
         let webcasts = [], dateStart = null, frcCode = code;
         try {
-          const frcData = await fetch(`/api/frc/${year}/events?eventCode=${code}`).then(r => r.json());
+          const frcData = await apiFetch(`/api/frc/${year}/events?eventCode=${code}`).then(r => r.json());
           const frcEvent = frcData?.Events?.[0];
           webcasts  = frcEvent?.webcasts  || [];
           dateStart = frcEvent?.dateStart || null;
@@ -1034,7 +1044,7 @@
         if (videoIds.length > 0) {
           const liveResults = await Promise.all(
             videoIds.map(vid =>
-              fetch(`/api/yt-live?vid=${encodeURIComponent(vid)}`)
+              apiFetch(`/api/yt-live?vid=${encodeURIComponent(vid)}`)
                 .then(r => r.ok ? r.json() : { live: false })
                 .then(j => ({ url: `https://www.youtube.com/watch?v=${vid}`, live: j.live }))
                 .catch(() => ({ url: `https://www.youtube.com/watch?v=${vid}`, live: false }))
