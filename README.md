@@ -12,6 +12,7 @@ A live leaderboard for tracking multiple FRC events simultaneously. Displays sch
 - Webcast and public agenda links per event
 - Sort by schedule adherence, completion %, or high score
 - ETag caching to minimize TBA API load
+- Caching server to reduce total API calls for multiple users
 - Light/dark adaptive UI
 
 ## License
