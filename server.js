@@ -28,7 +28,7 @@ const frcCache = new Map();
 const ytCache  = new Map();
 const YT_TTL   = 2 * 60 * 1000; // re-check every 2 minutes
 
-// Outbound API call timestamps (trimmed to 25 h in eviction loop)
+// Outbound API call timestamps (trimmed to 8 days in eviction loop)
 const apiLog = { tba: [], frc: [], yt: [] };
 
 setInterval(() => {
@@ -50,7 +50,7 @@ setInterval(() => {
     if (u.lastSeen < cutoff8d) userActivity.delete(uid);
   }
   for (const key of Object.keys(apiLog)) {
-    apiLog[key] = apiLog[key].filter(t => t > cutoff25h);
+    apiLog[key] = apiLog[key].filter(t => t > cutoff8d);
   }
 }, 60_000).unref();
 
