@@ -631,9 +631,19 @@
   }
 
   function isActiveThisWeek(ev) {
-    const today = new Date().toISOString().slice(0, 10);
-    return ev.start_date && ev.end_date &&
-      ev.start_date <= today && today <= ev.end_date;
+    if (!ev.start_date || !ev.end_date) return false;
+    const now = new Date();
+    const dow = now.getDay(); // 0=Sun … 6=Sat
+    const toMonday = dow === 0 ? -6 : 1 - dow;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + toMonday);
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const monStr = monday.toISOString().slice(0, 10);
+    const sunStr = sunday.toISOString().slice(0, 10);
+    // event overlaps the week if it starts before Sunday and ends after Monday
+    return ev.start_date <= sunStr && ev.end_date >= monStr;
   }
 
   // ── views ──────────────────────────────────────────────────────────────────
@@ -998,13 +1008,14 @@
         const year = ev.key.slice(0, 4);
         const code = ev.key.slice(4).toUpperCase();
 
-        // Fetch webcasts from FRC Events API; fall back to TBA if none returned
-        let webcasts = [], dateStart = null;
+        // Fetch webcasts and event code from FRC Events API; fall back to TBA if none returned
+        let webcasts = [], dateStart = null, frcCode = code;
         try {
           const frcData = await fetch(`/api/frc/${year}/events?eventCode=${code}`).then(r => r.json());
           const frcEvent = frcData?.Events?.[0];
           webcasts  = frcEvent?.webcasts  || [];
           dateStart = frcEvent?.dateStart || null;
+          if (frcEvent?.code) frcCode = frcEvent.code;
         } catch {}
 
         if (webcasts.length === 0) {
@@ -1033,7 +1044,7 @@
           if (liveStream) { streamUrl = liveStream.url; streamLive = true; }
         }
 
-        const agendaUrl = `https://info.firstinspires.org/hubfs/web/event/frc/${year}/${year}_${code}_Agenda.pdf`;
+        const agendaUrl = `https://info.firstinspires.org/hubfs/web/event/frc/${year}/${year}_${frcCode}_Agenda.pdf`;
         return { ...matchData, streamUrl, streamLive, agendaUrl };
       })
     );
