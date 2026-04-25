@@ -1,0 +1,4 @@
+.env
+docker-compose.prod.yml
+node_modules/
+.claude
