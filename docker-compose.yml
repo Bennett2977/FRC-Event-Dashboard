@@ -1,0 +1,22 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    depends_on:
+      - cache-server
+
+  cache-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.cache
+    ports:
+      - "127.0.0.1:3002:3002"
+    env_file: .env
+    environment:
+      - TBA_API_KEY=${TBA_API_KEY}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+      - FRC_API_USERNAME=${FRC_API_USERNAME}
+      - FRC_API_TOKEN=${FRC_API_TOKEN}
+    restart: unless-stopped
