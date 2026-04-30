@@ -487,6 +487,7 @@
       tbody td.col-rank     { display: none; }
       tbody td.col-location { display: none; }
       tbody td.col-cycle    { display: none; }
+      tbody td.col-fuel     { display: none; }
 
       tbody td.col-event {
         font-weight: 600;
@@ -562,13 +563,14 @@
             <th class="col-quals sortable" data-sort="quals" style="width:7rem">Quals</th>
             <th class="col-playoffs" style="width:7rem">Playoffs</th>
             <th class="col-sched sortable" data-sort="sched" style="width:10rem">Sched</th>
-            <th class="col-cycle sortable" data-sort="cycle" style="width:10rem">Cycle Act/Sched</th>
+            <th class="col-cycle sortable" data-sort="cycle" style="width:10rem" title="Quickest / Average / Scheduled cycle time">Cycle Q/A/S</th>
             <th class="col-highscore sortable" data-sort="high-score" style="width:5rem">High Score</th>
+            <th class="col-fuel sortable" data-sort="fuel" style="width:6rem">Total Fuel</th>
             <th class="col-links">Links</th>
           </tr>
         </thead>
         <tbody id="leaderboard-tbody">
-          <tr><td colspan="9" class="dim" style="text-align:center;padding:1rem 0;">loading…</td></tr>
+          <tr><td colspan="10" class="dim" style="text-align:center;padding:1rem 0;">loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -805,8 +807,8 @@
 
     // ── qual fields ──
     let playedCount = 0, pct = 0, currentNum = 0, delta = null, breakStatus = null,
-        avgCycleActual = null, avgCycleScheduled = null, highScoreMatch = null,
-        firstMatchTime = null;
+        avgCycleActual = null, avgCycleScheduled = null, quickestCycleActual = null,
+        highScoreMatch = null, firstMatchTime = null;
 
     if (total > 0) {
       const played = quals.filter(m => m.actual_time !== null);
@@ -842,7 +844,10 @@
           const gap = (playedSorted[i].actual_time - playedSorted[i - 1].actual_time) / 60;
           if (gap <= 20) gaps.push(gap);
         }
-        if (gaps.length) avgCycleActual = gaps.reduce((s, v) => s + v, 0) / gaps.length;
+        if (gaps.length) {
+          avgCycleActual = gaps.reduce((s, v) => s + v, 0) / gaps.length;
+          quickestCycleActual = Math.min(...gaps);
+        }
       }
 
       // High score
@@ -885,7 +890,7 @@
     }
 
     return { ev, total, played: playedCount, pct, currentNum, delta, breakStatus,
-             avgCycleActual, avgCycleScheduled, highScoreMatch, firstMatchTime,
+             avgCycleActual, avgCycleScheduled, quickestCycleActual, highScoreMatch, firstMatchTime,
              playoffCount, playoffDelta, playoffRound, playoffComplete };
   }
 
@@ -1010,10 +1015,12 @@
 
     const results = await Promise.allSettled(
       tracked.map(async ev => {
-        const [matches, eventDetail] = await Promise.all([
+        const [matches, eventDetail, insights] = await Promise.all([
           tbaFetch(`/event/${ev.key}/matches/simple`),
-          tbaFetch(`/event/${ev.key}`)
+          tbaFetch(`/event/${ev.key}`),
+          tbaFetch(`/event/${ev.key}/insights`).catch(() => null)
         ]);
+        const totalFuelScored = insights?.qual?.total_fuel_scored?.[0] ?? null;
         const matchData = processMatches(ev, matches);
         const year = ev.key.slice(0, 4);
         const code = ev.key.slice(4).toUpperCase();
@@ -1055,7 +1062,7 @@
         }
 
         const agendaUrl = `https://info.firstinspires.org/hubfs/web/event/frc/${year}/${year}_${frcCode}_Agenda.pdf`;
-        return { ...matchData, streamUrl, streamLive, agendaUrl };
+        return { ...matchData, streamUrl, streamLive, agendaUrl, totalFuelScored };
       })
     );
 
@@ -1063,7 +1070,7 @@
       if (r.status === "fulfilled") return r.value;
       return { ev: tracked[i], total: 0, played: 0, pct: 0, currentNum: 0, delta: null,
                streamUrl: null, streamLive: false, breakStatus: null, playoffCount: 0, playoffDelta: null,
-               playoffRound: null, error: r.reason.message };
+               playoffRound: null, totalFuelScored: null, error: r.reason.message };
     });
 
     lastEventData = eventData;
@@ -1141,7 +1148,7 @@
             : `<span style="color:${cssColor(statusClass(activeDelta))}">${deltaLabel(activeDelta)}</span>`;
 
       const cycleStr = d.avgCycleActual !== null
-        ? `${d.avgCycleActual.toFixed(1)}m / ${d.avgCycleScheduled !== null ? d.avgCycleScheduled.toFixed(1) + "m" : "—"}`
+        ? `${d.quickestCycleActual.toFixed(1)}m / ${d.avgCycleActual.toFixed(1)}m / ${d.avgCycleScheduled !== null ? d.avgCycleScheduled.toFixed(1) + "m" : "—"}`
         : "—";
 
       let highStr = "—";
@@ -1176,10 +1183,11 @@
           <td class="col-sched" data-label="Sched" data-sched-key="${d.ev.key}">${schedStr}</td>
           <td class="dim col-cycle" data-label="Cycle" style="font-size:0.72rem">${cycleStr}</td>
           <td class="col-highscore" data-label="High Score" style="white-space:nowrap">${highStr}</td>
+          <td class="dim col-fuel" data-label="Total Fuel">${d.totalFuelScored !== null ? d.totalFuelScored.toLocaleString() : "—"}</td>
           <td class="col-links"><div style="display:flex;gap:0.3rem;align-items:center">${webcasts} ${agendaBtn}</div></td>
         </tr>`;
     }).join("") ||
-      `<tr><td colspan="9" class="dim" style="text-align:center;padding:1rem 0;">// no data</td></tr>`;
+      `<tr><td colspan="10" class="dim" style="text-align:center;padding:1rem 0;">// no data</td></tr>`;
   }
 
   // ── event cards ─────────────────────────────────────────────────────────────
@@ -1223,6 +1231,9 @@
         const aTop = a.highScoreMatch ? Math.max(a.highScoreMatch.red ?? 0, a.highScoreMatch.blue ?? 0) : -1;
         const bTop = b.highScoreMatch ? Math.max(b.highScoreMatch.red ?? 0, b.highScoreMatch.blue ?? 0) : -1;
         return dir * (bTop - aTop);
+      }
+      if (sortMode === "fuel") {
+        return dir * ((b.totalFuelScored ?? -1) - (a.totalFuelScored ?? -1));
       }
       // sched (default): most ahead first, null last
       const ad = a.playoffCount > 0 ? a.playoffDelta : a.delta;
